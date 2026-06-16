@@ -233,8 +233,26 @@ export class App {
   }
 
   _renderAlignBar() {
-    const bar = this.root.querySelector('#alignbar');
-    if (bar) bar.classList.toggle('hidden', this.selectedNodes.length < 2);
+    const align = this.root.querySelector('#alignbar');
+    if (align) align.classList.toggle('hidden', this.selectedNodes.length < 2);
+    const ops = this.root.querySelector('#opsbar');
+    if (ops) ops.classList.toggle('hidden', this.selectedNodes.length < 1);
+  }
+
+  // place ops on the selection: drop to plate, center, level (reset rot), reset scale
+  _placeOp(act) {
+    const nodes = this.buildTree.nodes;
+    this.selectedNodes.forEach((i) => {
+      const n = nodes[i];
+      if (!n) return;
+      if (act === 'drop') { const ext = this.viewport.shapeExtent(i); if (ext) n.pos[2] = Math.round(-ext.minZ * 100) / 100 || 0; }
+      else if (act === 'center') { n.pos[0] = 0; n.pos[1] = 0; }
+      else if (act === 'level') { n.rot = [0, 0, 0]; }
+      else if (act === 'scale') { n.scale = [1, 1, 1]; }
+    });
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
   }
 
   // line up every selected shape with the primary on one axis
@@ -548,6 +566,10 @@ export class App {
     this.root.querySelectorAll('[data-align]').forEach((b) =>
       b.addEventListener('click', () => this._align(b.dataset.align)));
 
+    // place toolbar (drop to base, center, level, reset scale)
+    this.root.querySelectorAll('[data-op-act]').forEach((b) =>
+      b.addEventListener('click', () => this._placeOp(b.dataset.opAct)));
+
     // build pane
     this._bindBuildPane();
 
@@ -755,6 +777,13 @@ export class App {
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
               <button data-xform="scale" title="Scale (R)">⤢ size</button>
+            </div>
+            <div class="xform hidden" id="opsbar">
+              <span class="xform-label">place</span>
+              <button data-op-act="drop" title="Drop onto the plate">⤓ base</button>
+              <button data-op-act="center" title="Center on the plate">⊹ center</button>
+              <button data-op-act="level" title="Reset rotation">⟲ level</button>
+              <button data-op-act="scale" title="Reset scale to 1:1">1:1</button>
             </div>
             <div class="xform hidden" id="alignbar">
               <span class="xform-label">align to</span>

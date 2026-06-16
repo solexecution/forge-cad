@@ -307,6 +307,18 @@ export class Viewport {
     return on;
   }
 
+  // Bounding-box z range of a shape relative to its origin, with its current
+  // rotation + scale baked in (used to drop it onto the plate).
+  shapeExtent(index) {
+    const em = this.editMeshes.find((e) => e.index === index);
+    if (!em) return null;
+    const g = em.mesh.geometry;
+    g.computeBoundingBox();
+    const mat = new THREE.Matrix4().compose(new THREE.Vector3(), em.mesh.quaternion, em.mesh.scale);
+    const bb = g.boundingBox.clone().applyMatrix4(mat);
+    return { minZ: bb.min.z, maxZ: bb.max.z };
+  }
+
   // --- code mode: one merged solid -----------------------------------------
 
   setModel(manifold, { showEdges = true } = {}) {
@@ -362,6 +374,9 @@ export class Viewport {
       const mesh = new THREE.Mesh(it.geometry, mat);
       mesh.position.set(it.pos[0], it.pos[1], it.pos[2]);
       const r = it.rot || [0, 0, 0];
+      // Match manifold's rotate(x,y,z) (extrinsic X->Y->Z) so the preview and the
+      // gizmo read-back agree with the compiled/exported solid. Extrinsic XYZ == three Euler 'ZYX'.
+      mesh.rotation.order = 'ZYX';
       mesh.rotation.set(r[0] * Math.PI / 180, r[1] * Math.PI / 180, r[2] * Math.PI / 180);
       const s = it.scale || [1, 1, 1];
       mesh.scale.set(s[0], s[1], s[2]);
