@@ -105,6 +105,86 @@ export function roundedBox(x, y, z, r, segments = 32) {
   return out;
 }
 
+// --- Fasteners --------------------------------------------------------------
+// Coarse, FDM-printable threads. A real helical thread is made by twist-
+// extruding a 2D cross-section (a core circle with one triangular tooth): as
+// the section sweeps up it also rotates, so the tooth traces a single-start
+// helix. The same profile drives the bolt (positive) and the nut's cutter
+// (slightly oversized), so they always mate.
+
+// Regular hexagonal prism, base on the plate (z in [0, h]).
+// `acrossFlats` is the wrench size (distance between opposite faces).
+export function hexPrism(acrossFlats, h) {
+  const R = acrossFlats / Math.sqrt(3); // circumradius for a hex: AF = R*sqrt(3)
+  return kernel().Manifold.cylinder(h, R, R, 6, false);
+}
+
+// One external thread, axis = Z, base on the plate (z in [0, length]).
+// dMajor = outside (crest) diameter, depth = radial thread height (crest - root).
+// handed: +1 right-hand, -1 left-hand. `groove` is the V-groove's angular
+// fraction of the pitch (the rest is the crest land).
+//
+// Method: a full crest-radius cylinder with a single triangular notch cut
+// inward to the root, twist-extruded so the notch traces a helical V-groove.
+// Because every contour point is at radius >= rMin, the rod always has a solid
+// core (no matter how wide the groove), unlike an outward-tooth profile.
+export function thread(length, pitch, dMajor, depth, segments = 64, handed = 1, groove = 0.34) {
+  const M = kernel();
+  const rMaj = dMajor / 2;
+  const rMin = Math.max(0.3, rMaj - depth);
+  const turns = length / pitch;
+  const twist = -handed * 360 * turns;
+  // Groove half-width (radians). Its Z-height at the crest is (2*th)/omega with
+  // omega = 360/pitch deg per mm, i.e. groove*pitch = th_deg*pitch/180.
+  const th = Math.min(Math.PI * 0.7, groove * Math.PI);
+
+  // CCW contour: crest circle (radius rMaj) over most of the turn, then a
+  // V-notch dipping inward to rMin across the +X sector.
+  const pts = [];
+  const arc = 2 * Math.PI - 2 * th;
+  for (let i = 0; i <= segments; i++) {
+    const ang = th + (i / segments) * arc; // +th .. 2PI-th, CCW, at crest radius
+    pts.push([rMaj * Math.cos(ang), rMaj * Math.sin(ang)]);
+  }
+  pts.push([rMin, 0]); // inward groove apex, bridges the gap across +X
+
+  const cs = M.CrossSection([pts]);
+  const nDiv = Math.max(12, Math.ceil(turns * 24)); // slices: smooth the twist
+  const solid = cs.extrude(length, nDiv, twist, [1, 1], false);
+  cs.delete();
+  return solid;
+}
+
+// A hex-head bolt sitting on the plate: hex head (z in [0, headH]) then a
+// threaded shank above it. dMajor/pitch/length describe the thread.
+export function bolt(dMajor, pitch, length, headAF, headH) {
+  const M = kernel();
+  const depth = 0.61 * pitch; // ~ ISO thread height
+  const head = hexPrism(headAF, headH);
+  const th = thread(length, pitch, dMajor, depth);
+  const shank = th.translate([0, 0, headH]);
+  th.delete();
+  const out = M.Manifold.union([head, shank]);
+  head.delete();
+  shank.delete();
+  return out;
+}
+
+// A hex nut sitting on the plate with a mating threaded through-hole. The
+// cutter is the same thread profile, oversized by `clearance` (diametral), so
+// the printed nut runs onto a matching bolt().
+export function nut(dMajor, pitch, thickness, acrossFlats, clearance = 0.4) {
+  const M = kernel();
+  const depth = 0.61 * pitch;
+  const body = hexPrism(acrossFlats, thickness);
+  // Cutter runs past both faces so the hole is open end to end.
+  const cutter = thread(thickness + 2, pitch, dMajor + clearance, depth).translate([0, 0, -1]);
+  const out = M.Manifold.difference([body, cutter]);
+  body.delete();
+  cutter.delete();
+  return out;
+}
+
 // --- Boolean operations -----------------------------------------------------
 // Each takes an array of Manifolds and returns one. The inputs are NOT deleted
 // here; the scene graph owns lifetimes.

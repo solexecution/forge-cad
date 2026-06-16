@@ -15,6 +15,8 @@ const DEFS = {
   torus:      { fields: [['radius', 18], ['tube', 6]] },
   wedge:      { fields: [['w', 30], ['d', 30], ['h', 24]] },
   roundedBox: { fields: [['x', 24], ['y', 24], ['z', 24], ['r', 4]] },
+  bolt:       { fields: [['d', 16], ['pitch', 2.5], ['length', 20], ['headAF', 24], ['headH', 10]] },
+  nut:        { fields: [['d', 16], ['pitch', 2.5], ['thickness', 12], ['af', 24]] },
 };
 
 // Half-height along the up (z) axis, so a freshly added shape sits ON the
@@ -29,6 +31,8 @@ function baseHalfHeight(kind, get) {
     case 'wedge':      return 0; // already sits on the plate
     case 'roundedBox': return get('z') / 2;
     case 'sphere':     return get('r');
+    case 'bolt':       return 0; // built base-on-plate
+    case 'nut':        return 0; // built base-on-plate
     default:           return 0;
   }
 }
@@ -40,25 +44,31 @@ function fieldsFor(kind) {
   return DEFS[kind].fields.map(([key, value]) => ({ key, label: key, value }));
 }
 
+// Build a fresh node sitting on the plate. Exported so the template importer
+// can mint nodes the same way the Add buttons do.
+export function createNode(kind) {
+  if (!DEFS[kind]) return null;
+  const fields = fieldsFor(kind);
+  const get = (k) => fields.find((x) => x.key === k).value;
+  return {
+    kind,
+    op: 'solid',
+    pos: [0, 0, baseHalfHeight(kind, get)],
+    rot: [0, 0, 0],
+    scale: [1, 1, 1],
+    color: PALETTE[colorIx++ % PALETTE.length],
+    locked: false,
+    hidden: false,
+    fields,
+  };
+}
+
 export class BuildTree {
   constructor() { this.nodes = []; }
 
   add(kind) {
-    if (!DEFS[kind]) return null;
-    const fields = fieldsFor(kind);
-    const get = (k) => fields.find((x) => x.key === k).value;
-    const node = {
-      kind,
-      op: 'solid',
-      pos: [0, 0, baseHalfHeight(kind, get)],
-      rot: [0, 0, 0],
-      scale: [1, 1, 1],
-      color: PALETTE[colorIx++ % PALETTE.length],
-      locked: false,
-      hidden: false,
-      fields,
-    };
-    this.nodes.push(node);
+    const node = createNode(kind);
+    if (node) this.nodes.push(node);
     return node;
   }
 }
@@ -84,6 +94,8 @@ function shapeCall(node) {
     case 'torus':      return `torus(${f('radius')}, ${f('tube')})`;
     case 'wedge':      return `wedge(${f('w')}, ${f('d')}, ${f('h')})`;
     case 'roundedBox': return `roundedBox(${f('x')}, ${f('y')}, ${f('z')}, ${f('r')})`;
+    case 'bolt':       return `bolt(${f('d')}, ${f('pitch')}, ${f('length')}, ${f('headAF')}, ${f('headH')})`;
+    case 'nut':        return `nut(${f('d')}, ${f('pitch')}, ${f('thickness')}, ${f('af')})`;
     default:           return null;
   }
 }

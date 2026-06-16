@@ -206,11 +206,20 @@ input[type=range]::-moz-range-thumb {
   padding: 4px 6px; cursor: pointer; -webkit-appearance: none; appearance: none;
 }
 .bn-type:focus { outline: none; border-color: var(--cyan); }
-.bn-color {
-  width: 24px; height: 24px; flex: none; padding: 0; cursor: pointer;
+.bn-color-wrap { display: flex; align-items: center; gap: 4px; flex: none; }
+.bn-swatch {
+  width: 20px; height: 24px; flex: none; padding: 0; cursor: pointer;
   background: none; border: 1px solid var(--line); border-radius: 6px;
 }
-.bn-color:disabled { opacity: .25; cursor: default; }
+.bn-swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+.bn-swatch::-webkit-color-swatch { border: none; border-radius: 3px; }
+.bn-hex {
+  width: 58px; flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 5px; text-transform: lowercase;
+}
+.bn-hex:focus { outline: none; border-color: var(--cyan); }
+.bn-swatch:disabled, .bn-hex:disabled { opacity: .25; cursor: default; }
 .bn-ops { display: flex; gap: 3px; align-items: center; }
 .bn-op {
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600;
@@ -230,7 +239,7 @@ input[type=range]::-moz-range-thumb {
 .bn-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 5px; }
 .bn-fields label {
   font-family: var(--mono); font-size: 9px; color: var(--ink-dim);
-  display: flex; flex-direction: column; gap: 2px;
+  display: flex; flex-direction: column; gap: 2px; position: relative;
 }
 .bn-fields input {
   font-family: var(--mono); font-size: 11px; color: var(--ink);
@@ -238,6 +247,16 @@ input[type=range]::-moz-range-thumb {
   border-radius: 5px; padding: 4px 5px; width: 100%; min-width: 0;
 }
 .bn-fields input:focus { outline: none; border-color: var(--cyan); }
+/* drop the native number spinners so the unit suffix has room and the row stays tidy */
+.bn-fields input[type=number]::-webkit-outer-spin-button,
+.bn-fields input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bn-fields input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+/* unit suffix (mm / °) shown faintly at the right edge of the value */
+.bn-fields label[data-unit] input { padding-right: 19px; }
+.bn-fields label[data-unit]::after {
+  content: attr(data-unit); position: absolute; right: 6px; bottom: 6px;
+  font-family: var(--mono); font-size: 9px; color: var(--ink-dim); pointer-events: none;
+}
 
 /* stage / viewport — full-bleed, fills the whole window */
 .stage { position: fixed; inset: 0; z-index: 0; }
@@ -279,6 +298,18 @@ input[type=range]::-moz-range-thumb {
 .status-dot.state-working { background: var(--amber); animation: pulse 1s ease infinite; }
 .status-dot.state-error { background: var(--red); }
 @keyframes pulse { 50% { opacity: .35; } }
+
+/* transient in-page toast (bottom-centre); never a native dialog */
+.toast {
+  position: absolute; bottom: 56px; left: 50%; transform: translate(-50%, 8px);
+  font-family: var(--mono); font-size: 12px; color: var(--ink);
+  background: rgba(22,25,29,.92); backdrop-filter: blur(8px);
+  border: 1px solid var(--line); border-left: 3px solid var(--cyan);
+  border-radius: 8px; padding: 9px 14px; max-width: 78vw;
+  opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+  box-shadow: 0 12px 30px rgba(0,0,0,.5); z-index: 30;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* responsive: the drawer already overlays, so just tighten on small screens */
 @media (max-width: 720px) {

@@ -170,6 +170,20 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.roundedBox(
           arg(0, 'x'), arg(1, 'y'), arg(2, 'z'), arg(3, 'r'), arg(4, 'segments', 32))));
 
+      // --- fasteners ---
+      case 'thread':
+        return mark(track(K.thread(
+          arg(0, 'length'), arg(1, 'pitch'), arg(2, 'd'), arg(3, 'depth', 0.61 * arg(1, 'pitch')),
+          arg(4, 'segments', 96), arg(5, 'handed', 1), arg(6, 'groove', 0.34))));
+      case 'bolt':
+        return mark(track(K.bolt(
+          arg(0, 'd', 16), arg(1, 'pitch', 3), arg(2, 'length', 24),
+          arg(3, 'headAF', 24), arg(4, 'headH', 11))));
+      case 'nut':
+        return mark(track(K.nut(
+          arg(0, 'd', 16), arg(1, 'pitch', 3), arg(2, 'thickness', 13),
+          arg(3, 'acrossFlats', 24))));
+
       // --- 2D -> 3D ---
       case 'extrude':
         return mark(track(K.extrude(

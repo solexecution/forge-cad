@@ -7,12 +7,13 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox, bolt, nut } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
 import { Viewport } from './viewport.js';
 import { buildTreeToSource, BuildTree, setNodeKind } from './buildtree.js';
+import { sourceToNodes } from './importBuild.js';
 
 // Build one shape's geometry (centered, kernel-accurate) for the editable
 // build-mode view. The manifold is freed immediately after meshing.
@@ -29,6 +30,8 @@ function nodeToGeometry(node) {
       case 'torus':      m = torus(f('radius'), f('tube')); break;
       case 'wedge':      m = wedge(f('w'), f('d'), f('h')); break;
       case 'roundedBox': m = roundedBox(f('x'), f('y'), f('z'), f('r')); break;
+      case 'bolt':       m = bolt(f('d'), f('pitch'), f('length'), f('headAF'), f('headH')); break;
+      case 'nut':        m = nut(f('d'), f('pitch'), f('thickness'), f('af')); break;
       default: return null;
     }
     const g = manifoldToGeometry(m);
@@ -98,6 +101,11 @@ difference() {
   box(w, d, h);
   translate([0, 0, wall + 1]) box(w - 2*wall, d - 2*wall, h);
 }
+`,
+  'bolt & nut': `// Threaded bolt with a matching nut (coarse, printable)
+param d = 16; param pitch = 2.5;
+bolt(d, pitch, 20, 24, 10);
+translate([34, 0, 0]) nut(d, pitch, 12, 24);
 `,
 };
 
@@ -389,6 +397,26 @@ export class App {
   _loadTemplate(key) {
     const src = TEMPLATES[key];
     if (!src) return;
+    // In build mode, bring the template in as editable parts. If it uses
+    // something the build tree can't hold, fall back to loading it as code.
+    if (this.mode === 'build') {
+      try {
+        const nodes = sourceToNodes(src);
+        this._liftToPlate(nodes);
+        this.buildTree.nodes = nodes;
+        this.selectedNode = -1;
+        this.selectedNodes = [];
+        this._renderBuildTree();
+        this._renderAlignBar();
+        this.recompile(true);
+        this._pushHistory();
+        this._toast(`Loaded “${key}” — ${nodes.length} part${nodes.length === 1 ? '' : 's'}`);
+        return;
+      } catch (e) {
+        this._toast(`“${key}” opened in code (too complex for build)`);
+        // fall through to the code-pane load below
+      }
+    }
     this.mode = 'code';
     this.source = src;
     this.overrides = {};
@@ -399,6 +427,34 @@ export class App {
     this._setPanel(true);
     this.recompile(true);
     this._pushHistory();
+  }
+
+  // Shift a set of freshly-imported nodes up so the assembly's lowest point
+  // rests on the plate (build-mode shapes sit on z=0, unlike centred code).
+  _liftToPlate(nodes) {
+    const { result } = compile(buildTreeToSource({ nodes }), {});
+    if (!result) return;
+    try {
+      const minz = result.boundingBox().min[2];
+      if (minz) nodes.forEach((n) => { n.pos[2] = Math.round((n.pos[2] - minz) * 100) / 100 || 0; });
+    } finally {
+      try { result.delete(); } catch { /* freed */ }
+    }
+  }
+
+  // Brief in-page status toast (never a native dialog).
+  _toast(msg) {
+    let t = this.root.querySelector('#toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.className = 'toast';
+      this.root.querySelector('.stage').appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
   }
 
   // recompute the merged solid for HUD/export without rebuilding edit meshes
@@ -646,7 +702,7 @@ export class App {
       host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
       return;
     }
-    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'roundedBox'];
+    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'roundedBox', 'bolt', 'nut'];
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     this.buildTree.nodes.forEach((node, idx) => {
       const row = document.createElement('div');
@@ -656,13 +712,16 @@ export class App {
         + (node.hidden ? ' is-hidden' : '');
       row.dataset.node = idx;
       const dims = node.fields.map((f) =>
-        `<label>${f.label}<input type="number" step="0.5" value="${f.value}" data-field="${idx}:${f.key}"></label>`).join('');
+        `<label data-unit="mm">${f.label}<input type="number" step="0.5" value="${f.value}" data-field="${idx}:${f.key}"></label>`).join('');
       row.innerHTML = `
         <div class="bn-head">
           <select class="bn-type" data-type="${idx}" title="Shape type">
             ${KINDS.map((k) => `<option value="${k}" ${k === node.kind ? 'selected' : ''}>${k === 'roundedBox' ? 'rounded' : k}</option>`).join('')}
           </select>
-          <input type="color" class="bn-color" data-color="${idx}" value="${hex(node.color)}" title="Colour" ${node.op === 'hole' ? 'disabled' : ''}>
+          <span class="bn-color-wrap">
+            <input type="color" class="bn-swatch" data-color="${idx}" value="${hex(node.color)}" title="Pick colour" ${node.op === 'hole' ? 'disabled' : ''}>
+            <input type="text" class="bn-hex" data-hex="${idx}" value="${hex(node.color)}" maxlength="7" spellcheck="false" title="Hex colour" ${node.op === 'hole' ? 'disabled' : ''}>
+          </span>
           <div class="bn-ops">
             <button class="bn-op ${node.op}" data-op="${idx}" title="Toggle solid / hole">${node.op}</button>
             <button class="bn-ic ${node.locked ? 'on' : ''}" data-lock="${idx}" title="Lock position">${node.locked ? '🔒' : '🔓'}</button>
@@ -672,12 +731,12 @@ export class App {
         </div>
         <div class="bn-fields">${dims}</div>
         <div class="bn-fields bn-xyz">
-          <label>x<input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0"></label>
-          <label>y<input type="number" step="0.5" value="${node.pos[1]}" data-pos="${idx}:1"></label>
-          <label>z<input type="number" step="0.5" value="${node.pos[2]}" data-pos="${idx}:2"></label>
-          <label>rx<input type="number" step="15" value="${node.rot[0]}" data-rot="${idx}:0"></label>
-          <label>ry<input type="number" step="15" value="${node.rot[1]}" data-rot="${idx}:1"></label>
-          <label>rz<input type="number" step="15" value="${node.rot[2]}" data-rot="${idx}:2"></label>
+          <label data-unit="mm">x<input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0"></label>
+          <label data-unit="mm">y<input type="number" step="0.5" value="${node.pos[1]}" data-pos="${idx}:1"></label>
+          <label data-unit="mm">z<input type="number" step="0.5" value="${node.pos[2]}" data-pos="${idx}:2"></label>
+          <label data-unit="°">rx<input type="number" step="15" value="${node.rot[0]}" data-rot="${idx}:0"></label>
+          <label data-unit="°">ry<input type="number" step="15" value="${node.rot[1]}" data-rot="${idx}:1"></label>
+          <label data-unit="°">rz<input type="number" step="15" value="${node.rot[2]}" data-rot="${idx}:2"></label>
         </div>`;
       row.addEventListener('mousedown', (e) => {
         if (e.target.closest('input, button, select')) return;
@@ -691,7 +750,18 @@ export class App {
       setNodeKind(nodes[+el.dataset.type], el.value); this._renderBuildTree(); this.recompile(); this._pushHistory();
     }));
     host.querySelectorAll('[data-color]').forEach((el) => el.addEventListener('input', () => {
-      nodes[+el.dataset.color].color = parseInt(el.value.slice(1), 16); this._scheduleRecompile();
+      const i = +el.dataset.color;
+      nodes[i].color = parseInt(el.value.slice(1), 16);
+      const hx = host.querySelector(`[data-hex="${i}"]`); if (hx) hx.value = el.value;
+      this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-hex]').forEach((el) => el.addEventListener('input', () => {
+      let v = el.value.trim(); if (v[0] !== '#') v = '#' + v;
+      if (!/^#[0-9a-fA-F]{6}$/.test(v)) return; // hold until it's a complete hex
+      const i = +el.dataset.hex;
+      nodes[i].color = parseInt(v.slice(1), 16);
+      const sw = host.querySelector(`[data-color="${i}"]`); if (sw) sw.value = v;
+      this._scheduleRecompile();
     }));
     host.querySelectorAll('[data-op]').forEach((el) => el.addEventListener('click', () => {
       const n = nodes[+el.dataset.op]; n.op = n.op === 'hole' ? 'solid' : 'hole'; this._renderBuildTree(); this.recompile(); this._pushHistory();
@@ -751,6 +821,7 @@ export class App {
               <button data-tpl="pen cup">Pen cup</button>
               <button data-tpl="coaster">Coaster</button>
               <button data-tpl="stacking bin">Stacking bin</button>
+              <button data-tpl="bolt & nut">Bolt &amp; nut 🔩</button>
             </div>
           </div>
           <div class="menu" id="export-menu">
@@ -802,6 +873,8 @@ export class App {
               <button data-add="torus">torus</button>
               <button data-add="wedge">wedge</button>
               <button data-add="roundedBox">rounded</button>
+              <button data-add="bolt">bolt</button>
+              <button data-add="nut">nut</button>
             </div>
             <p class="hint">Click a shape to select · drag it on the plate to move · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
             <div class="pane-title">parts</div>
