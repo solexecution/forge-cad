@@ -318,6 +318,18 @@ export class Viewport {
     return on;
   }
 
+  // Shift every selected shape's mesh by a delta (language frame), without
+  // rebuilding geometry — used for keyboard nudge so threaded parts don't
+  // re-mesh on every key press.
+  shiftSelected(dx, dy, dz) {
+    for (const e of this.editMeshes) {
+      if (!this.selectedSet.includes(e.index)) continue;
+      e.mesh.position.x += dx; e.mesh.position.y += dy; e.mesh.position.z += dz;
+    }
+    const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
+    if (em && this._outline) this._outline.position.copy(em.mesh.position);
+  }
+
   // Bounding-box z range of a shape relative to its origin, with its current
   // rotation + scale baked in (used to drop it onto the plate).
   shapeExtent(index) {
@@ -376,12 +388,14 @@ export class Viewport {
 
     for (const it of items) {
       const isHole = it.op === 'hole';
+      // DoubleSide so a mirrored (negative-scale) shape still renders lit.
       const mat = isHole
         ? new THREE.MeshStandardMaterial({
-            color: COLORS.hole, transparent: true, opacity: 0.4,
+            color: COLORS.hole, transparent: true, opacity: 0.4, side: THREE.DoubleSide,
             roughness: 0.6, metalness: 0, depthWrite: false, wireframe: this._wire })
         : new THREE.MeshStandardMaterial({
-            color: it.color || COLORS.model, metalness: 0.1, roughness: 0.55, wireframe: this._wire });
+            color: it.color || COLORS.model, metalness: 0.1, roughness: 0.55,
+            side: THREE.DoubleSide, wireframe: this._wire });
       const mesh = new THREE.Mesh(it.geometry, mat);
       mesh.position.set(it.pos[0], it.pos[1], it.pos[2]);
       const r = it.rot || [0, 0, 0];

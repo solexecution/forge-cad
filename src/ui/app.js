@@ -257,6 +257,8 @@ export class App {
     if (align) align.classList.toggle('hidden', this.selectedNodes.length < 2);
     const ops = this.root.querySelector('#opsbar');
     if (ops) ops.classList.toggle('hidden', this.selectedNodes.length < 1);
+    const arr = this.root.querySelector('#arraybar');
+    if (arr) arr.classList.toggle('hidden', this.selectedNodes.length < 1);
     const grp = this.root.querySelector('#groupbar');
     if (grp) {
       const nodes = this.buildTree.nodes;
@@ -296,6 +298,82 @@ export class App {
     this.recompile();
     this._pushHistory();
     this._toast('Ungrouped');
+  }
+
+  // Mirror the selection across an axis through each shape's own centre (a
+  // negative scale — manifold mirrors cleanly, DoubleSide keeps the preview lit).
+  _flip(axis) {
+    const k = { x: 0, y: 1, z: 2 }[axis];
+    const nodes = this.buildTree.nodes;
+    let any = false;
+    this.selectedNodes.forEach((i) => {
+      const n = nodes[i]; if (!n) return;
+      const s = [...(n.scale || [1, 1, 1])]; s[k] = -s[k]; n.scale = s; any = true;
+    });
+    if (!any) return;
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+  }
+
+  // Arrow-key nudge: move the selection by the snap step (x10 with Shift),
+  // shifting meshes directly so threaded parts don't re-mesh each press.
+  _nudge(d) {
+    const nodes = this.buildTree.nodes;
+    let any = false;
+    this.selectedNodes.forEach((i) => {
+      const n = nodes[i]; if (!n || n.locked) return;
+      n.pos = [n.pos[0] + d[0], n.pos[1] + d[1], n.pos[2] + d[2]]; any = true;
+    });
+    if (!any) return;
+    this.viewport.shiftSelected(d[0], d[1], d[2]);
+    const host = this.root.querySelector('#build-list');
+    if (host) this.selectedNodes.forEach((i) => {
+      const n = nodes[i]; if (!n) return;
+      ['0', '1', '2'].forEach((a) => { const el = host.querySelector(`input[data-pos="${i}:${a}"]`); if (el) el.value = n.pos[+a]; });
+    });
+    this._recompileMergedHUD();
+    this._scheduleHistory();
+  }
+
+  _scheduleHistory() { clearTimeout(this._histTimer); this._histTimer = setTimeout(() => this._pushHistory(), 400); }
+
+  // Replicate the selection into a row (linear) or ring (polar). The whole
+  // array becomes one group so it moves/edits as a unit.
+  _arrayOp(kind) {
+    if (!this.selectedNodes.length) return;
+    const nodes = this.buildTree.nodes;
+    const n = Math.max(2, Math.min(64, parseInt(this.root.querySelector('#arr-n').value, 10) || 2));
+    const gap = parseFloat(this.root.querySelector('#arr-gap').value) || 0;
+    const gid = nodes.reduce((m, x) => (x.group != null && x.group > m ? x.group : m), 0) + 1;
+    const src = this.selectedNodes.map((i) => nodes[i]).filter(Boolean);
+    const clone = (s, dx, dy, dz, drz) => ({
+      kind: s.kind, op: s.op, pos: [s.pos[0] + dx, s.pos[1] + dy, s.pos[2] + dz],
+      rot: [s.rot[0], s.rot[1], s.rot[2] + (drz || 0)], scale: [...(s.scale || [1, 1, 1])],
+      color: s.color, locked: s.locked, hidden: s.hidden, group: gid, fields: s.fields.map((f) => ({ ...f })),
+    });
+    const copies = [];
+    if (kind === 'polar') {
+      for (let k = 1; k < n; k++) {
+        const a = (k * 360) / n, rad = (a * Math.PI) / 180, ca = Math.cos(rad), sa = Math.sin(rad);
+        src.forEach((s) => {
+          const x = s.pos[0], y = s.pos[1];
+          copies.push(clone(s, (x * ca - y * sa) - x, (x * sa + y * ca) - y, 0, a));
+        });
+      }
+    } else {
+      const ax = kind === 'x' ? 0 : 1;
+      for (let k = 1; k < n; k++) src.forEach((s) => { const d = [0, 0, 0]; d[ax] = k * gap; copies.push(clone(s, d[0], d[1], d[2], 0)); });
+    }
+    src.forEach((s) => { s.group = gid; }); // originals join the array group too
+    nodes.push(...copies);
+    this.selectedNodes = nodes.map((x, i) => (x.group === gid ? i : -1)).filter((i) => i >= 0);
+    this.selectedNode = this.selectedNodes[this.selectedNodes.length - 1];
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+    this._renderAlignBar();
+    this._toast(`Array ×${n}`);
   }
 
   // place ops on the selection: drop to plate, center, level (reset rot), reset scale
@@ -747,6 +825,12 @@ export class App {
     this.root.querySelectorAll('[data-group]').forEach((b) =>
       b.addEventListener('click', () => (b.dataset.group === 'group' ? this._group() : this._ungroup())));
 
+    // mirror / flip + array toolbars
+    this.root.querySelectorAll('[data-flip]').forEach((b) =>
+      b.addEventListener('click', () => this._flip(b.dataset.flip)));
+    this.root.querySelectorAll('[data-arr]').forEach((b) =>
+      b.addEventListener('click', () => this._arrayOp(b.dataset.arr)));
+
     // build pane
     this._bindBuildPane();
 
@@ -764,6 +848,11 @@ export class App {
       }
       if (this.mode === 'build' && (e.ctrlKey || e.metaKey) && k === 'g') {
         e.preventDefault(); if (e.shiftKey) this._ungroup(); else this._group(); return;
+      }
+      if (this.mode === 'build' && this.selectedNodes.length && !e.ctrlKey && !e.metaKey) {
+        const s = e.shiftKey ? 10 : 1;
+        const nudge = { ArrowLeft: [-s, 0, 0], ArrowRight: [s, 0, 0], ArrowUp: [0, s, 0], ArrowDown: [0, -s, 0], PageUp: [0, 0, s], PageDown: [0, 0, -s] };
+        if (nudge[e.key]) { e.preventDefault(); this._nudge(nudge[e.key]); return; }
       }
       if (this.mode === 'build' && this.selectedNodes.length) {
         if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteSelected(); }
@@ -980,6 +1069,17 @@ export class App {
               <button data-op-act="center" title="Center on the plate">⊹ center</button>
               <button data-op-act="level" title="Reset rotation">⟲ level</button>
               <button data-op-act="scale" title="Reset scale to 1:1">1:1</button>
+              <button data-flip="x" title="Mirror across X">⇋X</button>
+              <button data-flip="y" title="Mirror across Y">⇋Y</button>
+              <button data-flip="z" title="Mirror across Z">⇋Z</button>
+            </div>
+            <div class="xform hidden" id="arraybar">
+              <span class="xform-label">array</span>
+              <label class="arr-f">×<input type="number" id="arr-n" value="4" min="2" max="64" step="1"></label>
+              <label class="arr-f">gap<input type="number" id="arr-gap" value="25" step="1"></label>
+              <button data-arr="x" title="Row along X">↔ X</button>
+              <button data-arr="y" title="Row along Y">↕ Y</button>
+              <button data-arr="polar" title="Ring around the centre">⟳ ring</button>
             </div>
             <div class="xform hidden" id="alignbar">
               <span class="xform-label">align to</span>

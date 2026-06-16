@@ -180,6 +180,15 @@ input[type=range]::-moz-range-thumb {
 .xform button.on { background: var(--surface-2); color: var(--cyan); }
 .xform button:hover:not(:disabled) { color: var(--ink); }
 .xform button:disabled { opacity: .3; cursor: default; }
+.xform { flex-wrap: wrap; }
+.arr-f { display: flex; align-items: center; gap: 3px; flex: none; font-family: var(--mono); font-size: 9px; color: var(--ink-dim); }
+.arr-f input {
+  width: 32px; font-family: var(--mono); font-size: 11px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 3px 4px;
+  -moz-appearance: textfield; appearance: textfield;
+}
+.arr-f input::-webkit-outer-spin-button, .arr-f input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.arr-f input:focus { outline: none; border-color: var(--cyan); }
 
 .add-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .add-row button {
