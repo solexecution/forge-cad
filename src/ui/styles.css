@@ -171,6 +171,8 @@ input[type=range]::-moz-range-thumb {
 
 /* build pane */
 .xform { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.xform.hidden { display: none; }
+.xform-label { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); align-self: center; padding: 0 4px 0 6px; }
 .xform button {
   flex: 1; font-family: var(--mono); font-size: 11px; letter-spacing: .02em;
   color: var(--ink-dim); background: none; border: 0; border-radius: 6px; padding: 6px 4px; cursor: pointer;

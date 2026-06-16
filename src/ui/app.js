@@ -111,6 +111,7 @@ export class App {
     this.currentModel = null;
     this.buildTree = new BuildTree();
     this.selectedNode = -1;
+    this.selectedNodes = [];
     this._recompileTimer = null;
     this.history = [];
     this.histIdx = -1;
@@ -121,7 +122,7 @@ export class App {
     this._render();
     await loadKernel();
     this.viewport = new Viewport(this.root.querySelector('#viewport-canvas'));
-    this.viewport.onSelect = (i) => this._selectNode(i);
+    this.viewport.onSelect = (i, additive) => this._selectNode(i, additive);
     this.viewport.onShapeMove = (i, pos) => this._onShapeMove(i, pos);
     this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
     this.viewport.onTransform = (i, t) => this._onTransform(i, t);
@@ -203,23 +204,78 @@ export class App {
       }))
       .filter((it) => it && it.geometry);
     this.viewport.setEditShapes(items);
-    if (this.selectedNode >= 0 && this.selectedNode < this.buildTree.nodes.length) {
-      this.viewport.selectIndex(this.selectedNode);
-      this._highlightBuildRow(this.selectedNode);
+    this.selectedNodes = this.selectedNodes.filter((i) => i < this.buildTree.nodes.length);
+    this.selectedNode = this.selectedNodes.length ? this.selectedNodes[this.selectedNodes.length - 1] : -1;
+    this.viewport.setSelection(this.selectedNodes);
+    this._highlightBuildRows();
+    this._renderAlignBar();
+  }
+
+  _selectNode(i, additive) {
+    if (i < 0) {
+      if (!additive) this.selectedNodes = [];
+    } else if (additive) {
+      const k = this.selectedNodes.indexOf(i);
+      if (k >= 0) this.selectedNodes.splice(k, 1); else this.selectedNodes.push(i);
     } else {
-      this.selectedNode = -1;
+      this.selectedNodes = [i];
     }
+    this.selectedNode = this.selectedNodes.length ? this.selectedNodes[this.selectedNodes.length - 1] : -1;
+    this.viewport.setSelection(this.selectedNodes);
+    this._highlightBuildRows();
+    this._renderAlignBar();
   }
 
-  _selectNode(i) {
-    this.selectedNode = i;
-    this.viewport.selectIndex(i);
-    this._highlightBuildRow(i);
-  }
-
-  _highlightBuildRow(i) {
+  _highlightBuildRows() {
+    const sel = new Set(this.selectedNodes);
     this.root.querySelectorAll('.build-node').forEach((r) =>
-      r.classList.toggle('sel', Number(r.dataset.node) === i));
+      r.classList.toggle('sel', sel.has(Number(r.dataset.node))));
+  }
+
+  _renderAlignBar() {
+    const bar = this.root.querySelector('#alignbar');
+    if (bar) bar.classList.toggle('hidden', this.selectedNodes.length < 2);
+  }
+
+  // line up every selected shape with the primary on one axis
+  _align(axis) {
+    const a = { x: 0, y: 1, z: 2 }[axis];
+    const primary = this.buildTree.nodes[this.selectedNode];
+    if (a === undefined || !primary) return;
+    const v = primary.pos[a];
+    this.selectedNodes.forEach((i) => { this.buildTree.nodes[i].pos[a] = v; });
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+  }
+
+  _deleteSelected() {
+    if (!this.selectedNodes.length) return;
+    const set = new Set(this.selectedNodes);
+    this.buildTree.nodes = this.buildTree.nodes.filter((_, i) => !set.has(i));
+    this.selectedNodes = [];
+    this.selectedNode = -1;
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+    this._renderAlignBar();
+  }
+
+  _duplicateSelected() {
+    if (!this.selectedNodes.length) return;
+    const copies = this.selectedNodes.map((i) => this.buildTree.nodes[i]).filter(Boolean).map((s) => ({
+      kind: s.kind, op: s.op, pos: [s.pos[0] + 6, s.pos[1] + 6, s.pos[2]],
+      rot: [...s.rot], scale: [...(s.scale || [1, 1, 1])],
+      color: s.color, locked: s.locked, hidden: s.hidden, fields: s.fields.map((f) => ({ ...f })),
+    }));
+    const start = this.buildTree.nodes.length;
+    this.buildTree.nodes.push(...copies);
+    this.selectedNodes = copies.map((_, k) => start + k);
+    this.selectedNode = this.selectedNodes[this.selectedNodes.length - 1];
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+    this._renderAlignBar();
   }
 
   // live during a drag: move the shape + reflect in the panel, no recompile
@@ -488,6 +544,10 @@ export class App {
     this.root.querySelectorAll('[data-xform]').forEach((b) =>
       b.addEventListener('click', () => this._setXform(b.dataset.xform)));
 
+    // align toolbar (appears when 2+ shapes are selected)
+    this.root.querySelectorAll('[data-align]').forEach((b) =>
+      b.addEventListener('click', () => this._align(b.dataset.align)));
+
     // build pane
     this._bindBuildPane();
 
@@ -503,9 +563,9 @@ export class App {
       if (this.mode === 'build' && 'wer'.includes(k) && !e.ctrlKey && !e.metaKey) {
         this._setXform({ w: 'translate', e: 'rotate', r: 'scale' }[k]); return;
       }
-      if (this.mode === 'build' && this.selectedNode >= 0) {
-        if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteNode(this.selectedNode); }
-        else if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); this._duplicateNode(this.selectedNode); }
+      if (this.mode === 'build' && this.selectedNodes.length) {
+        if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteSelected(); }
+        else if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); this._duplicateSelected(); }
       }
     });
   }
@@ -599,7 +659,7 @@ export class App {
         </div>`;
       row.addEventListener('mousedown', (e) => {
         if (e.target.closest('input, button, select')) return;
-        this._selectNode(idx);
+        this._selectNode(idx, e.shiftKey);
       });
       host.appendChild(row);
     });
@@ -696,6 +756,13 @@ export class App {
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
               <button data-xform="scale" title="Scale (R)">⤢ size</button>
             </div>
+            <div class="xform hidden" id="alignbar">
+              <span class="xform-label">align to</span>
+              <button data-align="x" title="Line up on X">X</button>
+              <button data-align="y" title="Line up on Y">Y</button>
+              <button data-align="z" title="Line up on Z">Z</button>
+            </div>
+            <p class="hint">Shift-click shapes to multi-select · align lines them up with the last one.</p>
             <div class="pane-title">add shape</div>
             <div class="add-row">
               <button data-add="box">box</button>

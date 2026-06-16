@@ -58,6 +58,7 @@ export class Viewport {
     this.snapStep = 1;             // mm
     this.editMeshes = [];          // [{ index, mesh, op }]
     this.selectedIndex = -1;
+    this.selectedSet = [];
     this.transformMode = 'translate';
     this._gizmoDragging = false;
     this.onSelect = null;          // (index | -1)
@@ -118,7 +119,7 @@ export class Viewport {
   }
 
   _setupControls() {
-    let dragging = false, panning = false, shapeDrag = false, downOnCanvas = false;
+    let dragging = false, panning = false, shapeDrag = false, downOnCanvas = false, downAdditive = false;
     let lastX = 0, lastY = 0, downX = 0, downY = 0, moved = 0;
     let theta = Math.PI / 4, phi = Math.PI / 4, radius = 200;
     const target = new THREE.Vector3(0, 0, 0);
@@ -155,10 +156,10 @@ export class Viewport {
     };
     const zoom = (delta) => { radius = Math.max(20, Math.min(1200, radius * (1 + delta * 0.001))); apply(); };
 
-    const beginShapeDrag = (hit) => {
+    const beginShapeDrag = (hit, additive) => {
       const idx = hit.object.userData.index;
-      this.selectIndex(idx);
-      if (this.onSelect) this.onSelect(idx);
+      if (this.onSelect) this.onSelect(idx, additive);
+      if (additive) return; // shift-click toggles selection, no drag
       const locked = this.editMeshes.find((e) => e.index === idx)?.lock;
       if (locked) return; // select only — don't move a locked shape
       shapeDrag = true;
@@ -190,12 +191,12 @@ export class Viewport {
         [em.mesh.position.x, em.mesh.position.y, em.mesh.position.z]);
     };
 
-    const onDown = (x, y, pan) => {
+    const onDown = (x, y, pan, additive) => {
       if (this._gizmoDragging || (this.gizmo && this.gizmo.axis)) return; // a gizmo handle is grabbed
-      downOnCanvas = true;
+      downOnCanvas = true; downAdditive = additive;
       downX = x; downY = y; moved = 0;
       const hit = pan ? null : this._pickShape(x, y);
-      if (hit) beginShapeDrag(hit);
+      if (hit) beginShapeDrag(hit, additive);
       else startOrbit(x, y, pan);
     };
     const onMove = (x, y) => {
@@ -211,18 +212,15 @@ export class Viewport {
         if (em && this.onShapeMoveEnd) this.onShapeMoveEnd(this.selectedIndex,
           [em.mesh.position.x, em.mesh.position.y, em.mesh.position.z]);
         shapeDrag = false;
-      } else if (this.editActive && moved < 4) {
+      } else if (this.editActive && moved < 4 && !downAdditive) {
         // a click on empty space clears the selection
-        if (!this._pickShape(downX, downY)) {
-          this.selectIndex(-1);
-          if (this.onSelect) this.onSelect(-1);
-        }
+        if (!this._pickShape(downX, downY) && this.onSelect) this.onSelect(-1, false);
       }
       dragging = false; panning = false;
     };
 
     const c = this.canvas;
-    c.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY, e.button === 2 || e.shiftKey));
+    c.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY, e.button === 2, e.shiftKey));
     window.addEventListener('mousemove', (e) => { if (dragging || shapeDrag) onMove(e.clientX, e.clientY); });
     window.addEventListener('mouseup', onUp);
     c.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY); }, { passive: false });
@@ -231,7 +229,7 @@ export class Viewport {
     // Touch: one finger = drag a shape (or orbit on empty), two = pinch-zoom + pan.
     let pinchDist = 0;
     c.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 1) onDown(e.touches[0].clientX, e.touches[0].clientY, false);
+      if (e.touches.length === 1) onDown(e.touches[0].clientX, e.touches[0].clientY, false, false);
       else if (e.touches.length === 2) {
         shapeDrag = false;
         pinchDist = Math.hypot(
@@ -373,38 +371,39 @@ export class Viewport {
       this.editMeshes.push({ index: it.index, mesh, op: it.op, lock: it.lock });
     }
 
-    if (this.selectedIndex >= 0 && this.editMeshes.some((e) => e.index === this.selectedIndex)) {
-      this.selectIndex(this.selectedIndex);
-    } else {
-      this.selectedIndex = -1;
-    }
+    const valid = this.selectedSet.filter((i) => this.editMeshes.some((e) => e.index === i));
+    this.setSelection(valid);
   }
 
-  selectIndex(i) {
-    this.selectedIndex = i;
+  // Highlight a set of shapes; the LAST one is the primary (gizmo + outline).
+  setSelection(indices) {
+    this.selectedSet = (indices || []).slice();
+    this.selectedIndex = this.selectedSet.length ? this.selectedSet[this.selectedSet.length - 1] : -1;
     this._clearOutline();
     for (const e of this.editMeshes) {
-      const sel = e.index === i;
+      const sel = this.selectedSet.includes(e.index);
       const glow = e.op === 'hole' ? COLORS.glowHole : COLORS.glowSolid;
       e.mesh.material.emissive.setHex(sel ? glow : 0x000000);
     }
-    const em = this.editMeshes.find((e) => e.index === i);
+    const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
     if (em) {
       const line = new THREE.LineSegments(
         new THREE.EdgesGeometry(em.mesh.geometry, 20),
         new THREE.LineBasicMaterial({ color: 0xffffff }));
       line.position.copy(em.mesh.position);
       line.rotation.copy(em.mesh.rotation);
+      line.scale.copy(em.mesh.scale);
       line.renderOrder = 2;
       this.editGroup.add(line);
       this._outline = line;
     }
-    // attach the transform gizmo to the selection (not to locked shapes)
     if (this.gizmo) {
       if (em && !em.lock) { this.gizmo.attach(em.mesh); this.gizmo.setMode(this.transformMode); }
       else this.gizmo.detach();
     }
   }
+
+  selectIndex(i) { this.setSelection(i < 0 ? [] : [i]); }
 
   _clearOutline() {
     if (this._outline) {
