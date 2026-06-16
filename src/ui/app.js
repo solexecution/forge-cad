@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, roundedBox } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
@@ -25,6 +25,9 @@ function nodeToGeometry(node) {
       case 'cylinder':   m = cylinder(f('h'), f('r')); break;
       case 'sphere':     m = sphere(f('r')); break;
       case 'cone':       m = cone(f('h'), f('r1'), f('r2')); break;
+      case 'pyramid':    m = pyramid(f('h'), f('r')); break;
+      case 'torus':      m = torus(f('radius'), f('tube')); break;
+      case 'wedge':      m = wedge(f('w'), f('d'), f('h')); break;
       case 'roundedBox': m = roundedBox(f('x'), f('y'), f('z'), f('r')); break;
       default: return null;
     }
@@ -561,7 +564,7 @@ export class App {
       host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
       return;
     }
-    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'roundedBox'];
+    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'roundedBox'];
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     this.buildTree.nodes.forEach((node, idx) => {
       const row = document.createElement('div');
@@ -699,6 +702,9 @@ export class App {
               <button data-add="cylinder">cylinder</button>
               <button data-add="sphere">sphere</button>
               <button data-add="cone">cone</button>
+              <button data-add="pyramid">pyramid</button>
+              <button data-add="torus">torus</button>
+              <button data-add="wedge">wedge</button>
               <button data-add="roundedBox">rounded</button>
             </div>
             <p class="hint">Click a shape to select · drag it on the plate to move · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>

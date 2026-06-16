@@ -160,6 +160,12 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.cone(
           arg(0, 'h'), arg(1, 'r1'), arg(2, 'r2'), arg(3, 'segments', 64),
           arg(4, 'center', true))));
+      case 'pyramid':
+        return mark(track(K.pyramid(arg(0, 'h'), arg(1, 'r'), arg(2, 'segments', 4))));
+      case 'torus':
+        return mark(track(K.torus(arg(0, 'radius'), arg(1, 'tube'), arg(2, 'segments', 64))));
+      case 'wedge':
+        return mark(track(K.wedge(arg(0, 'w'), arg(1, 'd'), arg(2, 'h'))));
       case 'roundedBox':
         return mark(track(K.roundedBox(
           arg(0, 'x'), arg(1, 'y'), arg(2, 'z'), arg(3, 'r'), arg(4, 'segments', 32))));

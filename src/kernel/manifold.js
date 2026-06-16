@@ -53,6 +53,36 @@ export function cone(height, rLow, rHigh, segments = 64, center = true) {
   return kernel().Manifold.cylinder(height, rLow, rHigh, segments, center);
 }
 
+// Square pyramid: a 4-sided cone tapering to a point.
+export function pyramid(height, radius, segments = 4, center = true) {
+  return kernel().Manifold.cylinder(height, radius, 0, segments, center);
+}
+
+// Torus, built by revolving a circular tube. revolve() already yields a flat
+// ring (hole along Z), which sits correctly on the plate.
+export function torus(radius, tube, segments = 64, tubeSeg = 28) {
+  const pts = [];
+  for (let i = 0; i < tubeSeg; i++) {
+    const a = (i / tubeSeg) * Math.PI * 2;
+    pts.push([radius + tube * Math.cos(a), tube * Math.sin(a)]);
+  }
+  const cs = kernel().CrossSection([pts]);
+  const ring = cs.revolve(segments, 360);
+  cs.delete();
+  return ring;
+}
+
+// Right-triangular prism (a ramp). Extrude a triangle and stand it up so the
+// slope runs along the depth and the flat base sits on the plate.
+export function wedge(w, d, h) {
+  const cs = kernel().CrossSection([[[-w / 2, 0], [w / 2, 0], [-w / 2, h]]]);
+  const prism = cs.extrude(d, 0, 0, [1, 1], true);
+  cs.delete();
+  const r = prism.rotate(90, 0, 0);
+  prism.delete();
+  return r;
+}
+
 export function sphere(radius, segments = 64) {
   return kernel().Manifold.sphere(radius, segments);
 }
