@@ -272,6 +272,26 @@ export class App {
       if (gb) gb.disabled = !canGroup;
       if (ub) ub.disabled = !hasGroup;
     }
+    this._updateSelReadout();
+  }
+
+  // Show the selection's overall W x D x H in the HUD (a quick measuring aid).
+  _updateSelReadout() {
+    const row = this.root.querySelector('#hud-sel-row');
+    const out = this.root.querySelector('#hud-sel');
+    if (!row || !out) return;
+    if (this.mode !== 'build' || !this.selectedNodes.length) { row.classList.add('hidden'); return; }
+    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+    let any = false;
+    this.selectedNodes.forEach((i) => {
+      const b = this.viewport.shapeBounds(i); if (!b) return;
+      any = true;
+      for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], b.min[k]); mx[k] = Math.max(mx[k], b.max[k]); }
+    });
+    if (!any) { row.classList.add('hidden'); return; }
+    const f = (v) => v.toFixed(1);
+    out.textContent = `${f(mx[0] - mn[0])} × ${f(mx[1] - mn[1])} × ${f(mx[2] - mn[2])} mm`;
+    row.classList.remove('hidden');
   }
 
   // Combine the selected shapes into one group (their holes scope to the group,
@@ -683,6 +703,7 @@ export class App {
     this.currentModel = result;
     if (result) { this._updateHUD(inspect(result)); this._setStatus('ok'); }
     else { this._updateHUD(null); this._setStatus('empty'); }
+    this._updateSelReadout();
   }
 
   // --- HUD + status ---------------------------------------------------------
@@ -1147,6 +1168,7 @@ export class App {
           </div>
           <div class="hud-body">
             <div class="hud-row"><span class="hud-key">size</span><span id="hud-dims">—</span></div>
+            <div class="hud-row hidden" id="hud-sel-row"><span class="hud-key">select</span><span id="hud-sel">—</span></div>
             <div class="hud-row"><span class="hud-key">volume</span><span id="hud-vol">—</span></div>
             <div class="hud-row"><span class="hud-key">mesh</span><span id="hud-tris">—</span></div>
             <div class="hud-row"><span class="hud-key">state</span><span id="hud-watertight" class="hud-ok">—</span></div>
