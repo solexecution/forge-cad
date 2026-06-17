@@ -158,6 +158,87 @@ export function text(str, size = 12, height = 4, curveSegments = 6) {
   return out;
 }
 
+// --- Imported meshes --------------------------------------------------------
+// Build a Manifold from a vertex-welded triangle mesh. `positions` is a flat
+// xyz array (deduplicated verts), `triangles` flat vertex indices.
+export function meshSolid(positions, triangles) {
+  const M = kernel();
+  const mesh = new M.Mesh({
+    numProp: 3,
+    vertProperties: positions instanceof Float32Array ? positions : Float32Array.from(positions),
+    triVerts: triangles instanceof Uint32Array ? triangles : Uint32Array.from(triangles),
+  });
+  return new M.Manifold(mesh);
+}
+
+// Parse an STL (binary or ASCII) into a flat list of triangle vertices.
+function parseSTL(buffer) {
+  const dv = new DataView(buffer);
+  const bytes = new Uint8Array(buffer);
+  // ASCII starts with "solid" AND has no plausible binary tri-count match.
+  const header = String.fromCharCode(...bytes.slice(0, 5)).toLowerCase();
+  const looksAscii = header === 'solid' && buffer.byteLength > 84 &&
+    (84 + dv.getUint32(80, true) * 50) !== buffer.byteLength;
+  const tris = [];
+  if (looksAscii) {
+    const text = new TextDecoder().decode(buffer);
+    const re = /vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g;
+    let m;
+    while ((m = re.exec(text))) tris.push(+m[1], +m[2], +m[3]);
+  } else {
+    const n = dv.getUint32(80, true);
+    let o = 84;
+    for (let i = 0; i < n; i++) {
+      o += 12; // skip the face normal
+      for (let v = 0; v < 3; v++) { tris.push(dv.getFloat32(o, true), dv.getFloat32(o + 4, true), dv.getFloat32(o + 8, true)); o += 12; }
+      o += 2; // attribute byte count
+    }
+  }
+  return tris; // flat [x,y,z, x,y,z, ...], 9 per triangle
+}
+
+// Import an STL buffer as a watertight solid: weld coincident vertices (raw STL
+// is an unshared triangle soup), build the Manifold, then centre it on X/Y with
+// its base on the plate.
+export function importSTL(buffer) {
+  const flat = parseSTL(buffer);
+  const map = new Map();
+  const verts = [];
+  const idx = [];
+  const key = (x, y, z) => `${Math.round(x * 1000)},${Math.round(y * 1000)},${Math.round(z * 1000)}`;
+  const add = (x, y, z) => {
+    const k = key(x, y, z);
+    let i = map.get(k);
+    if (i === undefined) { i = verts.length / 3; verts.push(x, y, z); map.set(k, i); }
+    return i;
+  };
+  for (let i = 0; i < flat.length; i += 9) {
+    idx.push(add(flat[i], flat[i + 1], flat[i + 2]), add(flat[i + 3], flat[i + 4], flat[i + 5]), add(flat[i + 6], flat[i + 7], flat[i + 8]));
+  }
+  const man = meshSolid(verts, idx);
+  const bb = man.boundingBox();
+  const cx = (bb.min[0] + bb.max[0]) / 2, cy = (bb.min[1] + bb.max[1]) / 2;
+  const out = man.translate([-cx, -cy, -bb.min[2]]); // centre XY, base on z=0
+  man.delete();
+  return out;
+}
+
+// Session registry of imported solids, keyed by id. The build tree / language
+// reference them by id (imported("...")), so a mesh round-trips through
+// code<->build within a session without embedding its geometry in the source.
+const _solidReg = new Map();
+export function registerSolid(id, manifold) {
+  const prev = _solidReg.get(id);
+  if (prev && prev !== manifold) { try { prev.delete(); } catch { /* freed */ } }
+  _solidReg.set(id, manifold);
+  return id;
+}
+export function imported(id) {
+  const m = _solidReg.get(id);
+  if (!m) return kernel().Manifold.cube([10, 10, 10], true); // placeholder if the id is gone
+  return m.translate([0, 0, 0]); // a fresh copy — the evaluator frees what it builds
+}
+
 // --- Fasteners --------------------------------------------------------------
 // Coarse, FDM-printable threads. A real helical thread is made by twist-
 // extruding a 2D cross-section (a core circle with one triangular tooth): as

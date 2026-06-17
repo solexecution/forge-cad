@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox, tube, prism, text, bolt, nut } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox, tube, prism, text, bolt, nut, meshSolid, importSTL, registerSolid, imported } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
@@ -33,6 +33,7 @@ function nodeToGeometry(node) {
       case 'tube':       m = tube(f('h'), f('router'), f('rinner')); break;
       case 'prism':      m = prism(f('h'), f('r'), f('sides')); break;
       case 'text':       m = text(f('str'), f('size'), f('height')); break;
+      case 'imported':   m = imported(node.meshId || ''); break;
       case 'bolt':       m = bolt(f('d'), f('pitch'), f('length'), f('headAF'), f('headH')); break;
       case 'nut':        m = nut(f('d'), f('pitch'), f('thickness'), f('af')); break;
       default: return null;
@@ -140,7 +141,7 @@ export class App {
     this.viewport.onTransform = (i, t) => this._onTransform(i, t);
     this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
     window.__forgeExport = { exportSTL, export3MF, exportOBJ }; // scripting/test hook
-    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile }; // debug
+    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL }; // debug
     this._bindEvents();
     this.recompile(true);
     this._pushHistory();
@@ -499,7 +500,8 @@ export class App {
       return {
         kind: s.kind, op: s.op, pos: [s.pos[0] + 6, s.pos[1] + 6, s.pos[2]],
         rot: [...s.rot], scale: [...(s.scale || [1, 1, 1])],
-        color: s.color, locked: s.locked, hidden: s.hidden, group: g, fields: s.fields.map((f) => ({ ...f })),
+        color: s.color, locked: s.locked, hidden: s.hidden, group: g,
+        meshId: s.meshId, meshName: s.meshName, fields: s.fields.map((f) => ({ ...f })),
       };
     });
     const start = this.buildTree.nodes.length;
@@ -951,7 +953,42 @@ export class App {
   _bindBuildPane() {
     this.root.querySelectorAll('[data-add]').forEach((b) =>
       b.addEventListener('click', () => this._addShape(b.dataset.add)));
+    const fileInput = this.root.querySelector('#stl-file');
+    const importBtn = this.root.querySelector('#import-stl');
+    if (importBtn && fileInput) {
+      importBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) this._importSTLFile(f);
+        e.target.value = '';
+      });
+    }
     this._renderBuildTree();
+  }
+
+  // Read a user-chosen STL, build a watertight solid, and add it as a part.
+  _importSTLFile(file) {
+    const reader = new FileReader();
+    reader.onerror = () => this._toast('Could not read the file');
+    reader.onload = () => {
+      let man;
+      try { man = importSTL(reader.result); } catch (err) { this._toast('Import failed — not a valid STL'); return; }
+      if (!man || man.numTri() === 0) { this._toast('Import failed — STL is not watertight'); try { man && man.delete(); } catch { /* freed */ } return; }
+      const id = 'stl-' + (this._meshSeq = (this._meshSeq || 0) + 1);
+      registerSolid(id, man);
+      const node = this.buildTree.add('imported');
+      node.meshId = id;
+      node.meshName = file.name.replace(/\.stl$/i, '');
+      const idx = this.buildTree.nodes.length - 1;
+      this.selectedNodes = [idx];
+      this.selectedNode = idx;
+      this._renderBuildTree();
+      this.recompile(true);
+      this._pushHistory();
+      this._renderAlignBar();
+      this._toast(`Imported ${file.name}`);
+    };
+    reader.readAsArrayBuffer(file);
   }
 
   _addShape(kind) {
@@ -1045,9 +1082,11 @@ export class App {
       row.innerHTML = `
         <div class="bn-head">
           ${node.group != null ? `<span class="bn-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
-          <select class="bn-type" data-type="${idx}" title="Shape type">
+          ${node.kind === 'imported'
+            ? `<span class="bn-type bn-imported" title="Imported mesh">⬇ ${esc(node.meshName || 'mesh')}</span>`
+            : `<select class="bn-type" data-type="${idx}" title="Shape type">
             ${KINDS.map((k) => `<option value="${k}" ${k === node.kind ? 'selected' : ''}>${k === 'roundedBox' ? 'rounded' : k}</option>`).join('')}
-          </select>
+          </select>`}
           <span class="bn-color-wrap">
             <input type="color" class="bn-swatch" data-color="${idx}" value="${hex(node.color)}" title="Pick colour" ${node.op === 'hole' ? 'disabled' : ''}>
             <input type="text" class="bn-hex" data-hex="${idx}" value="${hex(node.color)}" maxlength="7" spellcheck="false" title="Hex colour" ${node.op === 'hole' ? 'disabled' : ''}>
@@ -1246,6 +1285,8 @@ export class App {
               <button data-add="bolt">bolt</button>
               <button data-add="nut">nut</button>
             </div>
+            <button id="import-stl" class="import-btn" title="Import a watertight STL mesh">⬇ import STL</button>
+            <input type="file" id="stl-file" accept=".stl,model/stl,application/sla" hidden>
             <p class="hint">Click a shape to select · drag it on the plate to move · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
             <div class="pane-title">parts</div>
             <div id="build-list" class="build-list"></div>

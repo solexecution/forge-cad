@@ -18,6 +18,7 @@ const DEFS = {
   tube:       { fields: [['h', 20], ['router', 12], ['rinner', 7]] },
   prism:      { fields: [['h', 20], ['r', 12], ['sides', 6]] },
   text:       { fields: [['str', 'Text', 'text'], ['size', 12], ['height', 4]] },
+  imported:   { fields: [] }, // geometry comes from a registered mesh (node.meshId)
   bolt:       { fields: [['d', 16], ['pitch', 2.5], ['length', 20], ['headAF', 24], ['headH', 10]] },
   nut:        { fields: [['d', 16], ['pitch', 2.5], ['thickness', 12], ['af', 24]] },
 };
@@ -37,6 +38,7 @@ function baseHalfHeight(kind, get) {
     case 'tube':       return get('h') / 2;
     case 'prism':      return get('h') / 2;
     case 'text':       return 0; // built base-on-plate, lying flat
+    case 'imported':   return 0; // STL centred on X/Y, base on the plate
     case 'bolt':       return 0; // built base-on-plate
     case 'nut':        return 0; // built base-on-plate
     default:           return 0;
@@ -105,6 +107,7 @@ function shapeCall(node) {
     case 'tube':       return `tube(${f('h')}, ${f('router')}, ${f('rinner')})`;
     case 'prism':      return `prism(${f('h')}, ${f('r')}, ${f('sides')})`;
     case 'text':       return `text("${String(f('str')).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}", ${f('size')}, ${f('height')})`;
+    case 'imported':   return `imported("${node.meshId || ''}")`;
     case 'bolt':       return `bolt(${f('d')}, ${f('pitch')}, ${f('length')}, ${f('headAF')}, ${f('headH')})`;
     case 'nut':        return `nut(${f('d')}, ${f('pitch')}, ${f('thickness')}, ${f('af')})`;
     default:           return null;

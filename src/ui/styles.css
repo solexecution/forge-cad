@@ -205,6 +205,17 @@ input[type=range]::-moz-range-thumb {
   border-radius: 7px; padding: 9px 4px; cursor: pointer; transition: all .15s;
 }
 .add-row button:hover { border-color: var(--cyan); color: var(--cyan); }
+.import-btn {
+  width: 100%; font-family: var(--mono); font-size: 12px; color: var(--ink);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px;
+  padding: 9px 4px; cursor: pointer; margin-top: 6px;
+}
+.import-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.bn-imported {
+  flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--cyan);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .build-list { display: flex; flex-direction: column; gap: 7px; }
 .build-node {

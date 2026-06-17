@@ -178,6 +178,8 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.prism(arg(0, 'h'), arg(1, 'r'), arg(2, 'sides', 6))));
       case 'text':
         return mark(track(K.text(arg(0, 'str', ''), arg(1, 'size', 12), arg(2, 'height', 4))));
+      case 'imported':
+        return mark(track(K.imported(arg(0, 'id', ''))));
 
       // --- fasteners ---
       case 'thread':

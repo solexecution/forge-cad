@@ -13,7 +13,7 @@ const TAU = Math.PI * 2;
 const TRANSFORMS = new Set(['translate', 'rotate', 'scale']);
 const PRIMS = new Set([
   'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid',
-  'torus', 'wedge', 'roundedBox', 'tube', 'prism', 'text', 'bolt', 'nut',
+  'torus', 'wedge', 'roundedBox', 'tube', 'prism', 'text', 'imported', 'bolt', 'nut',
 ]);
 
 const MATH = {
@@ -88,6 +88,15 @@ function unwrap(expr, env) {
   const kind = expr.name === 'cube' ? 'box' : expr.name;
   const node = createNode(kind);
   const args = expr.args;
+
+  if (kind === 'imported') {
+    node.meshId = args[0] !== undefined ? String(constEval(args[0], env)) : '';
+    node.meshName = node.meshId;
+    node.pos = [r2(pos[0]), r2(pos[1]), r2(pos[2])];
+    node.rot = [r2(rot[0]), r2(rot[1]), r2(rot[2])];
+    node.scale = [r3(scale[0]), r3(scale[1]), r3(scale[2])];
+    return node;
+  }
 
   if (kind === 'box' && args.length === 1) {
     const v = constEval(args[0], env);
