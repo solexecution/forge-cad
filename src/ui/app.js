@@ -419,8 +419,26 @@ export class App {
     this._toast(`Array ×${n}`);
   }
 
+  // Rest the primary (last-selected) part on top of the other selected parts,
+  // keeping its X/Y — the quick "put this on top of that" move.
+  _stack() {
+    if (this.selectedNodes.length < 2) return;
+    const prim = this.selectedNode;
+    const others = this.selectedNodes.filter((i) => i !== prim);
+    const tops = others.map((i) => this.viewport.shapeBounds(i)).filter(Boolean).map((b) => b.max[2]);
+    const pb = this.viewport.shapeBounds(prim);
+    if (!tops.length || !pb) return;
+    const shift = Math.max(...tops) - pb.min[2];
+    const n = this.buildTree.nodes[prim];
+    n.pos[2] = Math.round((n.pos[2] + shift) * 100) / 100 || 0;
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+  }
+
   // place ops on the selection: drop to plate, center, level (reset rot), reset scale
   _placeOp(act) {
+    if (act === 'stack') return this._stack();
     const nodes = this.buildTree.nodes;
     this.selectedNodes.forEach((i) => {
       const n = nodes[i];
@@ -1133,6 +1151,7 @@ export class App {
               <button data-op-act="center" title="Center on the plate">⊹ center</button>
               <button data-op-act="level" title="Reset rotation">⟲ level</button>
               <button data-op-act="scale" title="Reset scale to 1:1">1:1</button>
+              <button data-op-act="stack" title="Rest the last-selected part on top of the others">↥ stack</button>
               <button data-flip="x" title="Mirror across X">⇋X</button>
               <button data-flip="y" title="Mirror across Y">⇋Y</button>
               <button data-flip="z" title="Mirror across Z">⇋Z</button>
