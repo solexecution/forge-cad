@@ -169,6 +169,10 @@ export function evaluate(ast, overrides = {}) {
       case 'roundedBox':
         return mark(track(K.roundedBox(
           arg(0, 'x'), arg(1, 'y'), arg(2, 'z'), arg(3, 'r'), arg(4, 'segments', 32))));
+      case 'tube':
+        return mark(track(K.tube(arg(0, 'h'), arg(1, 'router'), arg(2, 'rinner'), arg(3, 'segments', 64))));
+      case 'prism':
+        return mark(track(K.prism(arg(0, 'h'), arg(1, 'r'), arg(2, 'sides', 6))));
 
       // --- fasteners ---
       case 'thread':

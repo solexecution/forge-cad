@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox, bolt, nut } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox, tube, prism, bolt, nut } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
@@ -30,6 +30,8 @@ function nodeToGeometry(node) {
       case 'torus':      m = torus(f('radius'), f('tube')); break;
       case 'wedge':      m = wedge(f('w'), f('d'), f('h')); break;
       case 'roundedBox': m = roundedBox(f('x'), f('y'), f('z'), f('r')); break;
+      case 'tube':       m = tube(f('h'), f('router'), f('rinner')); break;
+      case 'prism':      m = prism(f('h'), f('r'), f('sides')); break;
       case 'bolt':       m = bolt(f('d'), f('pitch'), f('length'), f('headAF'), f('headH')); break;
       case 'nut':        m = nut(f('d'), f('pitch'), f('thickness'), f('af')); break;
       default: return null;
@@ -925,7 +927,8 @@ export class App {
       host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
       return;
     }
-    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'roundedBox', 'bolt', 'nut'];
+    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'roundedBox', 'tube', 'prism', 'bolt', 'nut'];
+    const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth']);
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     this.buildTree.nodes.forEach((node, idx) => {
       const row = document.createElement('div');
@@ -934,8 +937,10 @@ export class App {
         + (idx === this.selectedNode ? ' sel' : '')
         + (node.hidden ? ' is-hidden' : '');
       row.dataset.node = idx;
-      const dims = node.fields.map((f) =>
-        `<label data-unit="mm">${f.label}<input type="number" step="0.5" value="${f.value}" data-field="${idx}:${f.key}"></label>`).join('');
+      const dims = node.fields.map((f) => {
+        const isCount = COUNT_KEYS.has(f.key);
+        return `<label${isCount ? '' : ' data-unit="mm"'}>${f.label}<input type="number" step="${isCount ? 1 : 0.5}" value="${f.value}" data-field="${idx}:${f.key}"></label>`;
+      }).join('');
       row.innerHTML = `
         <div class="bn-head">
           ${node.group != null ? `<span class="bn-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
@@ -1124,6 +1129,8 @@ export class App {
               <button data-add="torus">torus</button>
               <button data-add="wedge">wedge</button>
               <button data-add="roundedBox">rounded</button>
+              <button data-add="tube">tube</button>
+              <button data-add="prism">prism</button>
               <button data-add="bolt">bolt</button>
               <button data-add="nut">nut</button>
             </div>

@@ -105,6 +105,23 @@ export function roundedBox(x, y, z, r, segments = 32) {
   return out;
 }
 
+// Hollow cylinder (pipe / ring / washer / spacer), centred on the origin.
+export function tube(height, rOuter, rInner, segments = 64) {
+  const M = kernel().Manifold;
+  const ri = Math.max(0.1, Math.min(rInner, rOuter - 0.1));
+  const outer = M.cylinder(height, rOuter, rOuter, segments, true);
+  const inner = M.cylinder(height + 0.2, ri, ri, segments, true);
+  const out = M.difference([outer, inner]);
+  outer.delete();
+  inner.delete();
+  return out;
+}
+
+// Regular n-sided prism (polygon extruded), centred on the origin.
+export function prism(height, radius, sides = 6) {
+  return kernel().Manifold.cylinder(height, radius, radius, Math.max(3, Math.round(sides)), true);
+}
+
 // --- Fasteners --------------------------------------------------------------
 // Coarse, FDM-printable threads. A real helical thread is made by twist-
 // extruding a 2D cross-section (a core circle with one triangular tooth): as

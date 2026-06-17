@@ -15,6 +15,8 @@ const DEFS = {
   torus:      { fields: [['radius', 18], ['tube', 6]] },
   wedge:      { fields: [['w', 30], ['d', 30], ['h', 24]] },
   roundedBox: { fields: [['x', 24], ['y', 24], ['z', 24], ['r', 4]] },
+  tube:       { fields: [['h', 20], ['router', 12], ['rinner', 7]] },
+  prism:      { fields: [['h', 20], ['r', 12], ['sides', 6]] },
   bolt:       { fields: [['d', 16], ['pitch', 2.5], ['length', 20], ['headAF', 24], ['headH', 10]] },
   nut:        { fields: [['d', 16], ['pitch', 2.5], ['thickness', 12], ['af', 24]] },
 };
@@ -31,6 +33,8 @@ function baseHalfHeight(kind, get) {
     case 'wedge':      return 0; // already sits on the plate
     case 'roundedBox': return get('z') / 2;
     case 'sphere':     return get('r');
+    case 'tube':       return get('h') / 2;
+    case 'prism':      return get('h') / 2;
     case 'bolt':       return 0; // built base-on-plate
     case 'nut':        return 0; // built base-on-plate
     default:           return 0;
@@ -95,6 +99,8 @@ function shapeCall(node) {
     case 'torus':      return `torus(${f('radius')}, ${f('tube')})`;
     case 'wedge':      return `wedge(${f('w')}, ${f('d')}, ${f('h')})`;
     case 'roundedBox': return `roundedBox(${f('x')}, ${f('y')}, ${f('z')}, ${f('r')})`;
+    case 'tube':       return `tube(${f('h')}, ${f('router')}, ${f('rinner')})`;
+    case 'prism':      return `prism(${f('h')}, ${f('r')}, ${f('sides')})`;
     case 'bolt':       return `bolt(${f('d')}, ${f('pitch')}, ${f('length')}, ${f('headAF')}, ${f('headH')})`;
     case 'nut':        return `nut(${f('d')}, ${f('pitch')}, ${f('thickness')}, ${f('af')})`;
     default:           return null;
