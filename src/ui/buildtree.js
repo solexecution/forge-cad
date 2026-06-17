@@ -71,6 +71,7 @@ export function createNode(kind) {
     hidden: false,
     group: null, // group id; members combine (and scope their holes) together
     groupMode: 'union', // how a group combines: union | subtract | intersect
+    collapsed: false, // UI: part card folded to just its header
     fields,
   };
 }

@@ -530,7 +530,7 @@ export class App {
       return {
         kind: s.kind, op: s.op, pos: [s.pos[0] + 6, s.pos[1] + 6, s.pos[2]],
         rot: [...s.rot], scale: [...(s.scale || [1, 1, 1])],
-        color: s.color, locked: s.locked, hidden: s.hidden, group: g,
+        color: s.color, locked: s.locked, hidden: s.hidden, group: g, collapsed: s.collapsed,
         meshId: s.meshId, meshName: s.meshName, fields: s.fields.map((f) => ({ ...f })),
       };
     });
@@ -987,6 +987,8 @@ export class App {
   _bindBuildPane() {
     this.root.querySelectorAll('[data-add]').forEach((b) =>
       b.addEventListener('click', () => this._addShape(b.dataset.add)));
+    const collapseAll = this.root.querySelector('#collapse-all');
+    if (collapseAll) collapseAll.addEventListener('click', () => this._collapseAll());
     const fileInput = this.root.querySelector('#stl-file');
     const importBtn = this.root.querySelector('#import-stl');
     if (importBtn && fileInput) {
@@ -1104,7 +1106,8 @@ export class App {
       row.className = 'build-node'
         + (node.op === 'hole' ? ' is-hole' : '')
         + (idx === this.selectedNode ? ' sel' : '')
-        + (node.hidden ? ' is-hidden' : '');
+        + (node.hidden ? ' is-hidden' : '')
+        + (node.collapsed ? ' collapsed' : '');
       row.dataset.node = idx;
       const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
       const dims = node.fields.map((f) => {
@@ -1116,6 +1119,7 @@ export class App {
       }).join('');
       row.innerHTML = `
         <div class="bn-head">
+          <button class="bn-collapse" data-collapse="${idx}" title="${node.collapsed ? 'Expand' : 'Collapse'}">${node.collapsed ? '▸' : '▾'}</button>
           ${node.group != null ? `<span class="bn-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
           ${node.kind === 'imported'
             ? `<span class="bn-type bn-imported" title="Imported mesh">⬇ ${esc(node.meshName || 'mesh')}</span>`
@@ -1176,6 +1180,13 @@ export class App {
     host.querySelectorAll('[data-hide]').forEach((el) => el.addEventListener('click', () => {
       const n = nodes[+el.dataset.hide]; n.hidden = !n.hidden; this._renderBuildTree(); this.recompile(); this._pushHistory();
     }));
+    host.querySelectorAll('[data-collapse]').forEach((el) => el.addEventListener('click', () => {
+      const n = nodes[+el.dataset.collapse]; n.collapsed = !n.collapsed;
+      el.closest('.build-node').classList.toggle('collapsed', n.collapsed);
+      el.textContent = n.collapsed ? '▸' : '▾';
+      el.title = n.collapsed ? 'Expand' : 'Collapse';
+      this._updateCollapseAllLabel();
+    }));
     host.querySelectorAll('[data-del]').forEach((el) => el.addEventListener('click', () => this._deleteNode(+el.dataset.del)));
     host.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
       const [i, key] = el.dataset.field.split(':');
@@ -1189,6 +1200,25 @@ export class App {
     host.querySelectorAll('[data-rot]').forEach((el) => el.addEventListener('input', () => {
       const [i, a] = el.dataset.rot.split(':'); nodes[+i].rot[+a] = parseFloat(el.value); this._scheduleRecompile();
     }));
+    this._updateCollapseAllLabel();
+  }
+
+  // The "collapse/expand all" control reflects and flips every part card's
+  // collapsed state (purely a UI fold — no recompile).
+  _updateCollapseAllLabel() {
+    const btn = this.root.querySelector('#collapse-all');
+    if (!btn) return;
+    const nodes = this.buildTree.nodes;
+    btn.style.display = nodes.length ? '' : 'none';
+    btn.textContent = (nodes.length && nodes.every((n) => n.collapsed)) ? 'expand all' : 'collapse all';
+  }
+
+  _collapseAll() {
+    const nodes = this.buildTree.nodes;
+    if (!nodes.length) return;
+    const anyExpanded = nodes.some((n) => !n.collapsed);
+    nodes.forEach((n) => { n.collapsed = anyExpanded; });
+    this._renderBuildTree();
   }
 
   // --- markup ---------------------------------------------------------------
@@ -1329,7 +1359,10 @@ export class App {
             <button id="import-stl" class="import-btn" title="Import a watertight STL mesh">⬇ import STL</button>
             <input type="file" id="stl-file" accept=".stl,model/stl,application/sla" hidden>
             <p class="hint">Click a shape to select · drag it on the plate to move · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
-            <div class="pane-title">parts</div>
+            <div class="parts-head">
+              <span class="pane-title">parts</span>
+              <button id="collapse-all" class="mini-btn" title="Collapse or expand all parts">collapse all</button>
+            </div>
             <div id="build-list" class="build-list"></div>
           </section>
         </aside>

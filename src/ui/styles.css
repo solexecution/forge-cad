@@ -229,6 +229,22 @@ input[type=range]::-moz-range-thumb {
 .hint { color: var(--ink-dim); font-size: 10.5px; line-height: 1.5; margin: 4px 2px 2px; }
 .hint b { color: var(--ink); font-family: var(--mono); }
 
+.parts-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mini-btn {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--ink-dim); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 5px; padding: 3px 7px; cursor: pointer;
+}
+.mini-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+.build-node.collapsed .bn-fields { display: none; }
+.build-node.collapsed .bn-head { margin-bottom: 0; }
+.bn-collapse {
+  flex: none; width: 15px; height: 22px; padding: 0; cursor: pointer; line-height: 1;
+  background: none; border: 0; color: var(--ink-dim); font-size: 10px;
+}
+.bn-collapse:hover { color: var(--cyan); }
+
 .bn-head { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
 .bn-grp {
   font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .03em;
