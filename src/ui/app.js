@@ -393,12 +393,22 @@ export class App {
   }
 
   // line up every selected shape with the primary on one axis
-  _align(axis) {
-    const a = { x: 0, y: 1, z: 2 }[axis];
-    const primary = this.buildTree.nodes[this.selectedNode];
-    if (a === undefined || !primary) return;
-    const v = primary.pos[a];
-    this.selectedNodes.forEach((i) => { this.buildTree.nodes[i].pos[a] = v; });
+  // Align selected shapes by their min / centre / max edge on an axis to the
+  // selection's bounding box (Tinkercad-style). spec = "x:min" | "y:center" ...
+  _align(spec) {
+    const [axis, mode] = spec.split(':');
+    const k = { x: 0, y: 1, z: 2 }[axis];
+    if (k === undefined || this.selectedNodes.length < 2) return;
+    const nodes = this.buildTree.nodes;
+    const bounds = this.selectedNodes.map((i) => ({ i, b: this.viewport.shapeBounds(i) })).filter((o) => o.b);
+    if (bounds.length < 2) return;
+    const selMin = Math.min(...bounds.map((o) => o.b.min[k]));
+    const selMax = Math.max(...bounds.map((o) => o.b.max[k]));
+    const target = mode === 'min' ? selMin : mode === 'max' ? selMax : (selMin + selMax) / 2;
+    bounds.forEach(({ i, b }) => {
+      const anchor = mode === 'min' ? b.min[k] : mode === 'max' ? b.max[k] : (b.min[k] + b.max[k]) / 2;
+      nodes[i].pos[k] = Math.round((nodes[i].pos[k] + (target - anchor)) * 100) / 100 || 0;
+    });
     this._renderBuildTree();
     this.recompile();
     this._pushHistory();
@@ -1082,10 +1092,21 @@ export class App {
               <button data-arr="polar" title="Ring around the centre">⟳ ring</button>
             </div>
             <div class="xform hidden" id="alignbar">
-              <span class="xform-label">align to</span>
-              <button data-align="x" title="Line up on X">X</button>
-              <button data-align="y" title="Line up on Y">Y</button>
-              <button data-align="z" title="Line up on Z">Z</button>
+              <span class="xform-label">align</span>
+              <div class="align-grid">
+                <span class="ag-ax">X</span>
+                <button data-align="x:min" title="Align left (X min)">⊣</button>
+                <button data-align="x:center" title="Center on X">┼</button>
+                <button data-align="x:max" title="Align right (X max)">⊢</button>
+                <span class="ag-ax">Y</span>
+                <button data-align="y:min" title="Align front (Y min)">⊣</button>
+                <button data-align="y:center" title="Center on Y">┼</button>
+                <button data-align="y:max" title="Align back (Y max)">⊢</button>
+                <span class="ag-ax">Z</span>
+                <button data-align="z:min" title="Align down (Z min)">⊣</button>
+                <button data-align="z:center" title="Center on Z">┼</button>
+                <button data-align="z:max" title="Align up (Z max)">⊢</button>
+              </div>
             </div>
             <div class="xform hidden" id="groupbar">
               <span class="xform-label">group</span>

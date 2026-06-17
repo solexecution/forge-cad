@@ -342,6 +342,19 @@ export class Viewport {
     return { minZ: bb.min.z, maxZ: bb.max.z };
   }
 
+  // Absolute AABB of a shape in the editGroup (language) frame — for aligning
+  // shapes by their min / centre / max edges.
+  shapeBounds(index) {
+    const em = this.editMeshes.find((e) => e.index === index);
+    if (!em) return null;
+    const g = em.mesh.geometry;
+    g.computeBoundingBox();
+    const mat = new THREE.Matrix4().compose(new THREE.Vector3(), em.mesh.quaternion, em.mesh.scale);
+    const bb = g.boundingBox.clone().applyMatrix4(mat);
+    const p = em.mesh.position;
+    return { min: [bb.min.x + p.x, bb.min.y + p.y, bb.min.z + p.z], max: [bb.max.x + p.x, bb.max.y + p.y, bb.max.z + p.z] };
+  }
+
   // --- code mode: one merged solid -----------------------------------------
 
   setModel(manifold, { showEdges = true } = {}) {
