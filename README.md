@@ -21,8 +21,8 @@ non-manifold edges that wreck a slice.
 
 Pushing to `main` builds and deploys automatically (`.github/workflows/deploy.yml`):
 
-- **App (installable PWA):** https://solexecution.github.io/forge-cad/
-- **Single-file build:** https://solexecution.github.io/forge-cad/RandR.html
+- **App (installable PWA):** https://solexecution.github.io/randr/
+- **Single-file build:** https://solexecution.github.io/randr/RandR.html
 
 On an Android tablet, open the app URL in Chrome and use **⋮ → Add to Home screen / Install app** for an offline, full-screen icon. Or just open the single-file URL.
 
