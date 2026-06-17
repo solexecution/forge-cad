@@ -433,6 +433,28 @@ export class Viewport {
     this.modelGroup.position.y = -bb.min.y; // drop onto the plate
   }
 
+  // A translucent overlay of the combined result, shown over the editable parts
+  // (Option A). Lives in editGroup (language frame) so it lines up with the
+  // parts — no rotate/drop, unlike setModel.
+  setGhost(manifold) {
+    if (this._ghostMesh) {
+      this.editGroup.remove(this._ghostMesh);
+      this._ghostMesh.geometry.dispose();
+      this._ghostMesh.material.dispose();
+      this._ghostMesh = null;
+    }
+    if (!manifold) return;
+    const geom = manifoldToGeometry(manifold);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x4dd0e1, transparent: true, opacity: 0.18, depthWrite: false,
+      side: THREE.DoubleSide, roughness: 0.5, metalness: 0,
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.renderOrder = 4;
+    this.editGroup.add(mesh);
+    this._ghostMesh = mesh;
+  }
+
   // --- build mode: many selectable shapes -----------------------------------
 
   setEditMode(on) {

@@ -126,6 +126,7 @@ export class App {
     this.selectedNode = -1;
     this.selectedNodes = [];
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
+    this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
     this._recompileTimer = null;
     this.history = [];
     this.histIdx = -1;
@@ -173,13 +174,17 @@ export class App {
     }
     this.currentModel = result;
 
-    // Build mode shows individual shapes; code mode shows the merged solid.
-    if (this.mode === 'build') {
+    // Build mode shows individual shapes (with an optional ghost of the
+    // combined result); code mode — and build's "result" view — show the
+    // merged solid.
+    if (this.mode === 'build' && this.viewMode !== 'result') {
       this.viewport.setEditMode(true);
       this._renderEditShapes();
+      this.viewport.setGhost(this._wantGhost() ? result : null);
     } else {
       this.viewport.setEditMode(false);
       this.viewport.setModel(result || null);
+      this.viewport.setGhost(null);
     }
 
     if (result) {
@@ -223,6 +228,30 @@ export class App {
     this.viewport.setSelection(this.selectedNodes);
     this._highlightBuildRows();
     this._renderAlignBar();
+  }
+
+  // The ghost preview only helps when the combined result differs from the
+  // parts — i.e. a subtract/intersect group is present.
+  _wantGhost() {
+    return this.buildTree.nodes.some((n) => !n.hidden && n.group != null && n.groupMode && n.groupMode !== 'union');
+  }
+
+  // Toggle the build view: 'edit' (parts + result ghost) vs 'result' (the
+  // combined solid). The toggle is how you get back to editing — no separate
+  // enter-group step needed.
+  _setViewMode(mode) {
+    this.viewMode = mode;
+    this.root.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === mode));
+    if (this.mode !== 'build') return;
+    if (mode === 'result') {
+      this.viewport.setEditMode(false);
+      this.viewport.setModel(this.currentModel || null);
+      this.viewport.setGhost(null);
+    } else {
+      this.viewport.setEditMode(true);
+      this._renderEditShapes();
+      this.viewport.setGhost(this._wantGhost() ? this.currentModel : null);
+    }
   }
 
   // All node indices that share a node's group (or just itself if ungrouped).
@@ -889,6 +918,10 @@ export class App {
     this.root.querySelectorAll('[data-xform]').forEach((b) =>
       b.addEventListener('click', () => this._setXform(b.dataset.xform)));
 
+    // build view toggle: edit (parts + ghost) vs result (combined solid)
+    this.root.querySelectorAll('[data-view]').forEach((b) =>
+      b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
+
     // align toolbar (appears when 2+ shapes are selected)
     this.root.querySelectorAll('[data-align]').forEach((b) =>
       b.addEventListener('click', () => this._align(b.dataset.align)));
@@ -1220,6 +1253,11 @@ export class App {
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
               <button data-xform="scale" title="Scale (R)">⤢ size</button>
+            </div>
+            <div class="xform" id="viewbar">
+              <span class="xform-label">view</span>
+              <button data-view="edit" class="on" title="Edit the parts (ghosts the result of subtract/intersect groups)">◧ edit</button>
+              <button data-view="result" title="Preview the combined result">◨ result</button>
             </div>
             <div class="xform" id="wpbar">
               <span class="xform-label">plane</span>
