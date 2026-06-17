@@ -1018,7 +1018,16 @@ export class App {
     this._renderBuildTree();
   }
 
-  _openAddModal() { const m = this.root.querySelector('#add-modal'); if (m) m.classList.remove('hidden'); }
+  _openAddModal() {
+    // Adding parts is a build-mode action; if in code, switch first (carrying
+    // the design over via the importer). If that can't happen, don't open.
+    if (this.mode !== 'build') {
+      this._switchMode('build');
+      if (this.mode !== 'build') return;
+    }
+    const m = this.root.querySelector('#add-modal');
+    if (m) m.classList.remove('hidden');
+  }
   _closeAddModal() { const m = this.root.querySelector('#add-modal'); if (m) m.classList.add('hidden'); }
 
   // Read a user-chosen STL, build a watertight solid, and add it as a part.
@@ -1257,6 +1266,7 @@ export class App {
             <button data-mode="code" class="active">code</button>
             <button data-mode="build">build</button>
           </div>
+          <button class="icon-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
           <div class="spacer"></div>
           <div class="viewtools">
             <button class="icon-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
@@ -1299,7 +1309,6 @@ export class App {
           </section>
 
           <section id="pane-build" class="pane hidden">
-            <button id="add-open" class="add-open-btn" title="Add a shape, part, or ready-made object">+ Add shape</button>
             <input type="file" id="stl-file" accept=".stl,model/stl,application/sla" hidden>
             <div class="xform" id="xform">
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>

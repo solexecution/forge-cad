@@ -206,13 +206,13 @@ input[type=range]::-moz-range-thumb {
 }
 .add-row button:hover { border-color: var(--cyan); color: var(--cyan); }
 
-/* primary "Add shape" button at the top of the build pane */
-.add-open-btn {
-  width: 100%; font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: .04em;
-  color: var(--bg); background: var(--cyan); border: 1px solid var(--cyan);
-  border-radius: 9px; padding: 11px 4px; cursor: pointer; transition: filter .12s;
+/* "+" add button in the top bar — the primary "add to scene" action */
+.add-btn {
+  color: var(--bg); background: var(--cyan); border-color: var(--cyan);
+  font-size: 19px; font-weight: 600; line-height: 1;
 }
-.add-open-btn:hover { filter: brightness(1.08); }
+.add-btn:hover { filter: brightness(1.08); background: var(--cyan); border-color: var(--cyan); }
+.add-btn.on { background: var(--cyan); } /* keep the accent even if toggled */
 
 /* Add modal — categorized shape/part library (custom in-page, not a native dialog) */
 .modal-overlay {
