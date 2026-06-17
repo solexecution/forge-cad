@@ -56,6 +56,8 @@ export class Viewport {
     this.editActive = false;
     this.snap = true;
     this.snapStep = 1;             // mm
+    this.magnet = true;            // snap to other parts' edges/centres while dragging
+    this.magnetDist = 3;           // snap pull radius (mm)
     this.editMeshes = [];          // [{ index, mesh, op }]
     this.selectedIndex = -1;
     this.selectedSet = [];
@@ -177,6 +179,13 @@ export class Viewport {
       } else {
         dragOffset.set(0, 0);
       }
+      // Magnetic-snap setup: the dragged part's box (relative to its origin) and
+      // the fixed boxes of every part NOT being dragged, to snap against.
+      this._magnetSuppressed = false;
+      this._dragBox = this._meshLocalBox(hit.object);
+      this._magnetTargets = this.editMeshes
+        .filter((e) => !this.selectedSet.includes(e.index))
+        .map((e) => this._meshWorldBox(e.mesh));
     };
     const moveShape = (x, y) => {
       this._raycaster.setFromCamera(this._ndcFrom(x, y), this.camera);
@@ -184,8 +193,13 @@ export class Viewport {
       const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
       if (!em) return;
       const local = this.editGroup.worldToLocal(hitV.clone());
-      const nx = snapV(local.x + dragOffset.x);  // language X
-      const ny = snapV(local.y + dragOffset.y);  // language Y (workplane)
+      let nx = snapV(local.x + dragOffset.x);  // language X
+      let ny = snapV(local.y + dragOffset.y);  // language Y (workplane)
+      // Magnetic snap to other parts' edges/centres (hold Alt while dragging
+      // to turn it off), then show the alignment guide(s) it locked onto.
+      const mag = this._applyMagnet(nx, ny);
+      nx = mag.x; ny = mag.y;
+      this._showSnapGuides(mag.guides, em.mesh.position.z);
       // Shift every selected shape by the same delta so a group/multi-select
       // moves together (the primary tracks the cursor, the rest follow).
       const dx = nx - em.mesh.position.x, dy = ny - em.mesh.position.y;
@@ -224,6 +238,8 @@ export class Viewport {
         if (em && this.onShapeMoveEnd) this.onShapeMoveEnd(this.selectedIndex,
           [em.mesh.position.x, em.mesh.position.y, em.mesh.position.z]);
         shapeDrag = false;
+        this._clearSnapGuides();
+        this._magnetTargets = null; this._dragBox = null;
       } else if (this.editActive && moved < 4 && !downAdditive) {
         // a click on empty space clears the selection
         if (!this._pickShape(downX, downY) && this.onSelect) this.onSelect(-1, false);
@@ -233,7 +249,7 @@ export class Viewport {
 
     const c = this.canvas;
     c.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY, e.button === 2, e.shiftKey));
-    window.addEventListener('mousemove', (e) => { if (dragging || shapeDrag) onMove(e.clientX, e.clientY); });
+    window.addEventListener('mousemove', (e) => { if (dragging || shapeDrag) { this._magnetSuppressed = e.altKey; onMove(e.clientX, e.clientY); } });
     window.addEventListener('mouseup', onUp);
     c.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY); }, { passive: false });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -354,6 +370,80 @@ export class Viewport {
     const bb = g.boundingBox.clone().applyMatrix4(mat);
     const p = em.mesh.position;
     return { min: [bb.min.x + p.x, bb.min.y + p.y, bb.min.z + p.z], max: [bb.max.x + p.x, bb.max.y + p.y, bb.max.z + p.z] };
+  }
+
+  // --- magnetic snap (drag parts together) ----------------------------------
+  // The dragged part's XY box relative to its own origin (rotation + scale baked
+  // in), and the same for a fixed part but in absolute editGroup coordinates.
+  _meshLocalBox(mesh) {
+    const g = mesh.geometry; g.computeBoundingBox();
+    const mat = new THREE.Matrix4().compose(new THREE.Vector3(), mesh.quaternion, mesh.scale);
+    const bb = g.boundingBox.clone().applyMatrix4(mat);
+    return { minX: bb.min.x, maxX: bb.max.x, minY: bb.min.y, maxY: bb.max.y };
+  }
+
+  _meshWorldBox(mesh) {
+    const b = this._meshLocalBox(mesh);
+    const p = mesh.position;
+    return { minX: b.minX + p.x, maxX: b.maxX + p.x, minY: b.minY + p.y, maxY: b.maxY + p.y };
+  }
+
+  // Pull the dragged origin to the nearest edge/centre alignment with another
+  // part, per axis, within magnetDist. Candidates per target: align min/centre/
+  // max edges, or abut (our edge meets theirs so the parts touch). Returns the
+  // adjusted x/y and the guide line(s) it locked onto.
+  _applyMagnet(nx, ny) {
+    const out = { x: nx, y: ny, guides: [] };
+    if (!this.magnet || this._magnetSuppressed || !this._dragBox
+        || !this._magnetTargets || !this._magnetTargets.length) return out;
+    const db = this._dragBox, T = this.magnetDist;
+    const r2 = (v) => Math.round(v * 100) / 100;
+    for (const ax of ['X', 'Y']) {
+      const lo0 = db['min' + ax], hi0 = db['max' + ax], c0 = (lo0 + hi0) / 2;
+      const p = ax === 'X' ? nx : ny;
+      let best = null;
+      for (const t of this._magnetTargets) {
+        const tlo = t['min' + ax], thi = t['max' + ax], tc = (tlo + thi) / 2;
+        const cands = [
+          [tlo - lo0, tlo], [thi - hi0, thi], [tc - c0, tc], // align min / max / centre
+          [tlo - hi0, tlo], [thi - lo0, thi],                 // abut (touch)
+        ];
+        for (const [pos, at] of cands) {
+          const d = Math.abs(pos - p);
+          if (d <= T && (!best || d < best.d)) best = { d, pos, at, t };
+        }
+      }
+      if (best) {
+        if (ax === 'X') out.x = r2(best.pos); else out.y = r2(best.pos);
+        out.guides.push({ axis: ax, at: best.at, t: best.t });
+      }
+    }
+    return out;
+  }
+
+  _showSnapGuides(guides, z) {
+    this._clearSnapGuides();
+    if (!guides || !guides.length) return;
+    const pts = [];
+    for (const g of guides) {
+      if (g.axis === 'X') { pts.push(g.at, g.t.minY - 10, z, g.at, g.t.maxY + 10, z); }
+      else { pts.push(g.t.minX - 10, g.at, z, g.t.maxX + 10, g.at, z); }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+      color: 0xffb74d, transparent: true, opacity: 0.9, depthTest: false }));
+    lines.renderOrder = 9;
+    this.editGroup.add(lines);
+    this._snapGuides = lines;
+  }
+
+  _clearSnapGuides() {
+    if (!this._snapGuides) return;
+    this.editGroup.remove(this._snapGuides);
+    this._snapGuides.geometry.dispose();
+    this._snapGuides.material.dispose();
+    this._snapGuides = null;
   }
 
   // --- workplane (face-based placement frame) -------------------------------

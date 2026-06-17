@@ -1784,7 +1784,7 @@ export class App {
               <button data-gmode="subtract" title="Subtract — first part minus the rest">∖</button>
               <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
             </div>
-            <p class="hint">Click a part to select · drag to move · Shift-click for multi-select · select 2+ to <b>align</b> / <b>group</b> · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
+            <p class="hint">Click to select · drag to move — snaps to nearby parts (hold <b>Alt</b> to free) · Shift-click multi-select · select 2+ to <b>align</b> / <b>group</b> · <b>Del</b> · <b>Ctrl+D</b></p>
             <div class="parts-head">
               <span class="pane-title">parts</span>
               <button id="collapse-all" class="mini-btn" title="Collapse or expand all parts">collapse all</button>
