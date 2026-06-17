@@ -204,6 +204,7 @@ export class Viewport {
 
     const onDown = (x, y, pan, additive) => {
       if (this._gizmoDragging || (this.gizmo && this.gizmo.axis)) return; // a gizmo handle is grabbed
+      if (this._planePick) { this._doPlanePick(x, y); return; } // arming a workplane pick
       downOnCanvas = true; downAdditive = additive;
       downX = x; downY = y; moved = 0;
       const hit = pan ? null : this._pickShape(x, y);
@@ -353,6 +354,58 @@ export class Viewport {
     const bb = g.boundingBox.clone().applyMatrix4(mat);
     const p = em.mesh.position;
     return { min: [bb.min.x + p.x, bb.min.y + p.y, bb.min.z + p.z], max: [bb.max.x + p.x, bb.max.y + p.y, bb.max.z + p.z] };
+  }
+
+  // --- workplane (face-based placement frame) -------------------------------
+  // Arm the next canvas click to pick a face. cb receives {origin, normal, rot}
+  // in the language frame (rot = Euler ZYX degrees that aligns +Z to the face
+  // normal) or null when the click misses every shape (= reset to ground).
+  armWorkplanePick(cb) {
+    this._planePick = cb;
+    this.canvas.style.cursor = 'crosshair';
+  }
+
+  _doPlanePick(x, y) {
+    const cb = this._planePick;
+    this._planePick = null;
+    this.canvas.style.cursor = '';
+    this.editGroup.updateMatrixWorld(true); // ensure picks use current mesh transforms
+    this._raycaster.setFromCamera(this._ndcFrom(x, y), this.camera);
+    const hits = this._raycaster.intersectObjects(this.editMeshes.map((e) => e.mesh), false);
+    if (!hits.length || !hits[0].face) { if (cb) cb(null); return; }
+    const hit = hits[0];
+    const pLocal = this.editGroup.worldToLocal(hit.point.clone());
+    const nm = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
+    const nWorld = hit.face.normal.clone().applyMatrix3(nm).normalize();
+    const gq = this.editGroup.getWorldQuaternion(new THREE.Quaternion());
+    const nLocal = nWorld.applyQuaternion(gq.invert()).normalize();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), nLocal);
+    const e = new THREE.Euler().setFromQuaternion(q, 'ZYX');
+    const D = 180 / Math.PI;
+    const r = (v) => { const z = Math.round(v * D * 100) / 100; return z === 0 ? 0 : z; };
+    if (cb) cb({
+      origin: [pLocal.x, pLocal.y, pLocal.z].map((v) => Math.round(v * 100) / 100),
+      normal: [nLocal.x, nLocal.y, nLocal.z],
+      rot: [r(e.x), r(e.y), r(e.z)],
+    });
+  }
+
+  // Show / hide the translucent workplane indicator (info in language frame).
+  setWorkplane(info) {
+    if (this._wpMesh) {
+      this.editGroup.remove(this._wpMesh);
+      this._wpMesh.geometry.dispose(); this._wpMesh.material.dispose();
+      this._wpMesh = null;
+    }
+    if (!info) return;
+    const geo = new THREE.PlaneGeometry(140, 140);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x4dd0e1, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(info.normal[0], info.normal[1], info.normal[2]));
+    mesh.position.set(info.origin[0], info.origin[1], info.origin[2]);
+    mesh.renderOrder = 2;
+    this.editGroup.add(mesh);
+    this._wpMesh = mesh;
   }
 
   // --- code mode: one merged solid -----------------------------------------

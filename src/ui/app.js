@@ -123,6 +123,7 @@ export class App {
     this.buildTree = new BuildTree();
     this.selectedNode = -1;
     this.selectedNodes = [];
+    this.workplane = null; // {origin,normal,rot} build frame, or null for ground
     this._recompileTimer = null;
     this.history = [];
     this.histIdx = -1;
@@ -899,6 +900,10 @@ export class App {
     this.root.querySelectorAll('[data-gmode]').forEach((b) =>
       b.addEventListener('click', () => this._setGroupMode(b.dataset.gmode)));
 
+    // workplane toolbar
+    this.root.querySelectorAll('[data-wp]').forEach((b) =>
+      b.addEventListener('click', () => (b.dataset.wp === 'face' ? this._pickWorkplane() : this._resetWorkplane())));
+
     // mirror / flip + array toolbars
     this.root.querySelectorAll('[data-flip]').forEach((b) =>
       b.addEventListener('click', () => this._flip(b.dataset.flip)));
@@ -950,11 +955,41 @@ export class App {
   }
 
   _addShape(kind) {
-    this.buildTree.add(kind);
-    this.selectedNode = this.buildTree.nodes.length - 1;
+    const node = this.buildTree.add(kind);
+    const idx = this.buildTree.nodes.length - 1;
+    // If a workplane is active, spawn the part oriented to and resting on it.
+    // node.pos[2] currently holds the kind's sit-on-plate offset (base height),
+    // so we offset the origin along the plane normal by that amount.
+    if (node && this.workplane) {
+      const { origin: o, normal: n, rot } = this.workplane;
+      const h = node.pos[2];
+      const r2 = (v) => Math.round(v * 100) / 100 || 0;
+      node.pos = [r2(o[0] + n[0] * h), r2(o[1] + n[1] * h), r2(o[2] + n[2] * h)];
+      node.rot = [...rot];
+    }
+    this.selectedNodes = idx >= 0 ? [idx] : [];
+    this.selectedNode = idx;
     this._renderBuildTree();
     this.recompile();
     this._pushHistory();
+    this._renderAlignBar();
+  }
+
+  // Arm a face pick to set the build workplane; clicking empty space resets to
+  // ground. New shapes then spawn on this plane until reset.
+  _pickWorkplane() {
+    this._toast('Click a face to set the workplane (or empty space for ground)');
+    this.viewport.armWorkplanePick((info) => {
+      this.workplane = info;
+      this.viewport.setWorkplane(info);
+      this._toast(info ? 'Workplane set — new shapes build on this face' : 'Workplane reset to ground');
+    });
+  }
+
+  _resetWorkplane() {
+    this.workplane = null;
+    this.viewport.setWorkplane(null);
+    this._toast('Workplane: ground');
   }
 
   _deleteNode(i) {
@@ -1144,6 +1179,11 @@ export class App {
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
               <button data-xform="scale" title="Scale (R)">⤢ size</button>
+            </div>
+            <div class="xform" id="wpbar">
+              <span class="xform-label">plane</span>
+              <button data-wp="face" title="Click a face to build on it">⊞ on face</button>
+              <button data-wp="ground" title="Reset the workplane to the ground">⊞ ground</button>
             </div>
             <div class="xform hidden" id="opsbar">
               <span class="xform-label">place</span>
