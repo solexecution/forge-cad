@@ -15,6 +15,7 @@ const DEFS = {
   torus:      { fields: [['radius', 18], ['tube', 6]] },
   wedge:      { fields: [['w', 30], ['d', 30], ['h', 24]] },
   roundedBox: { fields: [['x', 24], ['y', 24], ['z', 24], ['r', 4]] },
+  roundedCylinder: { fields: [['h', 20], ['r', 12], ['fillet', 3]] },
   tube:       { fields: [['h', 20], ['router', 12], ['rinner', 7]] },
   prism:      { fields: [['h', 20], ['r', 12], ['sides', 6]] },
   text:       { fields: [['str', 'Text', 'text'], ['size', 12], ['height', 4]] },
@@ -34,6 +35,7 @@ function baseHalfHeight(kind, get) {
     case 'torus':      return get('tube');
     case 'wedge':      return 0; // already sits on the plate
     case 'roundedBox': return get('z') / 2;
+    case 'roundedCylinder': return 0; // revolve builds it base-on-plate
     case 'sphere':     return get('r');
     case 'tube':       return get('h') / 2;
     case 'prism':      return get('h') / 2;
@@ -104,6 +106,7 @@ function shapeCall(node) {
     case 'torus':      return `torus(${f('radius')}, ${f('tube')})`;
     case 'wedge':      return `wedge(${f('w')}, ${f('d')}, ${f('h')})`;
     case 'roundedBox': return `roundedBox(${f('x')}, ${f('y')}, ${f('z')}, ${f('r')})`;
+    case 'roundedCylinder': return `roundedCylinder(${f('h')}, ${f('r')}, ${f('fillet')})`;
     case 'tube':       return `tube(${f('h')}, ${f('router')}, ${f('rinner')})`;
     case 'prism':      return `prism(${f('h')}, ${f('r')}, ${f('sides')})`;
     case 'text':       return `text("${String(f('str')).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}", ${f('size')}, ${f('height')})`;

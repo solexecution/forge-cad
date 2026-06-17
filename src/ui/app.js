@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox, tube, prism, text, bolt, nut, meshSolid, importSTL, registerSolid, imported } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox, roundedCylinder, tube, prism, text, bolt, nut, meshSolid, importSTL, registerSolid, imported } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
@@ -30,6 +30,7 @@ function nodeToGeometry(node) {
       case 'torus':      m = torus(f('radius'), f('tube')); break;
       case 'wedge':      m = wedge(f('w'), f('d'), f('h')); break;
       case 'roundedBox': m = roundedBox(f('x'), f('y'), f('z'), f('r')); break;
+      case 'roundedCylinder': m = roundedCylinder(f('h'), f('r'), f('fillet')); break;
       case 'tube':       m = tube(f('h'), f('router'), f('rinner')); break;
       case 'prism':      m = prism(f('h'), f('r'), f('sides')); break;
       case 'text':       m = text(f('str'), f('size'), f('height')); break;
@@ -1061,7 +1062,8 @@ export class App {
       host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
       return;
     }
-    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'roundedBox', 'tube', 'prism', 'text', 'bolt', 'nut'];
+    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'roundedBox', 'roundedCylinder', 'tube', 'prism', 'text', 'bolt', 'nut'];
+    const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl' };
     const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth']);
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     this.buildTree.nodes.forEach((node, idx) => {
@@ -1085,7 +1087,7 @@ export class App {
           ${node.kind === 'imported'
             ? `<span class="bn-type bn-imported" title="Imported mesh">⬇ ${esc(node.meshName || 'mesh')}</span>`
             : `<select class="bn-type" data-type="${idx}" title="Shape type">
-            ${KINDS.map((k) => `<option value="${k}" ${k === node.kind ? 'selected' : ''}>${k === 'roundedBox' ? 'rounded' : k}</option>`).join('')}
+            ${KINDS.map((k) => `<option value="${k}" ${k === node.kind ? 'selected' : ''}>${KIND_LABEL[k] || k}</option>`).join('')}
           </select>`}
           <span class="bn-color-wrap">
             <input type="color" class="bn-swatch" data-color="${idx}" value="${hex(node.color)}" title="Pick colour" ${node.op === 'hole' ? 'disabled' : ''}>
@@ -1279,6 +1281,7 @@ export class App {
               <button data-add="torus">torus</button>
               <button data-add="wedge">wedge</button>
               <button data-add="roundedBox">rounded</button>
+              <button data-add="roundedCylinder">r-cyl</button>
               <button data-add="tube">tube</button>
               <button data-add="prism">prism</button>
               <button data-add="text">text</button>

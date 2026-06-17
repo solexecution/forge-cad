@@ -124,6 +124,20 @@ export function prism(height, radius, sides = 6) {
   return kernel().Manifold.cylinder(height, radius, radius, Math.max(3, Math.round(sides)), true);
 }
 
+// Cylinder with filleted top + bottom rim, standing on the plate. Built by
+// revolving a rounded-corner profile (reliable — no general edge fillet needed).
+export function roundedCylinder(height, radius, fillet, segments = 64, arcSeg = 8) {
+  const f = Math.max(0.1, Math.min(fillet, Math.min(radius - 0.1, height / 2 - 0.1)));
+  const pts = [[0, 0], [radius - f, 0]];
+  for (let i = 1; i <= arcSeg; i++) { const a = -Math.PI / 2 + (i / arcSeg) * (Math.PI / 2); pts.push([(radius - f) + f * Math.cos(a), f + f * Math.sin(a)]); }
+  for (let i = 0; i <= arcSeg; i++) { const a = (i / arcSeg) * (Math.PI / 2); pts.push([(radius - f) + f * Math.cos(a), (height - f) + f * Math.sin(a)]); }
+  pts.push([0, height]);
+  const cs = kernel().CrossSection([pts]);
+  const out = cs.revolve(segments, 360); // revolve yields a Z-axis solid, base on z=0
+  cs.delete();
+  return out;
+}
+
 // --- Text -------------------------------------------------------------------
 // Parse the bundled typeface once (sync) so text() can run in the eval path.
 let _font = null;

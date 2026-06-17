@@ -13,7 +13,7 @@ const TAU = Math.PI * 2;
 const TRANSFORMS = new Set(['translate', 'rotate', 'scale']);
 const PRIMS = new Set([
   'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid',
-  'torus', 'wedge', 'roundedBox', 'tube', 'prism', 'text', 'imported', 'bolt', 'nut',
+  'torus', 'wedge', 'roundedBox', 'roundedCylinder', 'tube', 'prism', 'text', 'imported', 'bolt', 'nut',
 ]);
 
 const MATH = {

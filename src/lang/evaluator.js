@@ -176,6 +176,8 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.tube(arg(0, 'h'), arg(1, 'router'), arg(2, 'rinner'), arg(3, 'segments', 64))));
       case 'prism':
         return mark(track(K.prism(arg(0, 'h'), arg(1, 'r'), arg(2, 'sides', 6))));
+      case 'roundedCylinder':
+        return mark(track(K.roundedCylinder(arg(0, 'h'), arg(1, 'r'), arg(2, 'fillet', 2))));
       case 'text':
         return mark(track(K.text(arg(0, 'str', ''), arg(1, 'size', 12), arg(2, 'height', 4))));
       case 'imported':
