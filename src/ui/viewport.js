@@ -581,7 +581,9 @@ export class Viewport {
     this.editActive = on;
     this.editGroup.visible = on;
     this.modelGroup.visible = !on;
-    if (!on) { this._clearOutline(); }
+    // Leaving edit mode (result view or code mode): drop the outline AND detach
+    // the transform gizmo, or its handles linger floating where the part was.
+    if (!on) { this._clearOutline(); if (this.gizmo) this.gizmo.detach(); }
   }
 
   setEditShapes(items) {
