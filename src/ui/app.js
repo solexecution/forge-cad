@@ -647,7 +647,14 @@ export class App {
     const can2 = this.selectedNodes.length >= 2;
     const hasGroup = this.selectedNodes.some((j) => nodes[j] && nodes[j].group != null);
 
-    const btn = (act, label, danger) => `<button data-act="${act}" class="ctx-it${danger ? ' ctx-danger' : ''}">${label}</button>`;
+    const keys = {
+      dup: 'Ctrl+D', op: 'H', lock: 'L', hide: '⇧H', del: 'Del', explode: '⇧B',
+      group: 'Ctrl+G', ungroup: '⇧Ctrl+G',
+      'xf:translate': 'W', 'xf:rotate': 'E', 'xf:scale': 'R',
+      'place:drop': 'B', 'place:center': 'C', 'place:level': '⇧E', 'place:scale': '⇧R', 'place:stack': 'S',
+      'flip:x': 'X', 'flip:y': 'Y', 'flip:z': 'Z',
+    };
+    const btn = (act, label, danger) => `<button data-act="${act}" class="ctx-it${danger ? ' ctx-danger' : ''}"><span>${label}</span>${keys[act] ? `<span class="ctx-key">${keys[act]}</span>` : ''}</button>`;
     const sub = (label, items) => `<div class="ctx-it ctx-has-sub"><span>${label}</span><span class="ctx-arr">▸</span><div class="ctx-sub">${items.map(([a, l]) => btn(a, l)).join('')}</div></div>`;
     const sep = '<div class="ctx-sep"></div>';
 
@@ -1526,8 +1533,27 @@ export class App {
       if ((e.ctrlKey || e.metaKey) && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); this._redo(); return; }
       if (k === 'f') { this.viewport.fitView(); return; }
       if (k === 'g') { $('#v-grid').classList.toggle('on', this.viewport.toggleGrid()); return; }
-      if (this.mode === 'build' && 'wer'.includes(k) && !e.ctrlKey && !e.metaKey) {
+      if (this.mode === 'build' && 'wer'.includes(k) && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         this._setXform({ w: 'translate', e: 'rotate', r: 'scale' }[k]); return;
+      }
+      // single-key tool shortcuts (build mode, something selected) — mirror the
+      // right-click menu's accelerators
+      if (this.mode === 'build' && !e.ctrlKey && !e.metaKey && this.selectedNodes.length) {
+        const reflow = () => { this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar(); };
+        const each = (fn) => { this.selectedNodes.forEach((j) => { const n = this.buildTree.nodes[j]; if (n) fn(n); }); reflow(); };
+        if (e.shiftKey) {
+          if (k === 'e') { this._placeOp('level'); return; }
+          if (k === 'r') { this._placeOp('scale'); return; }
+          if (k === 'h') { each((n) => { n.hidden = !n.hidden; }); return; }
+          if (k === 'b') { this._explodeNode(this.selectedNode); return; }
+        } else {
+          if (k === 'h') { each((n) => { n.op = n.op === 'hole' ? 'solid' : 'hole'; }); return; }
+          if (k === 'l') { each((n) => { n.locked = !n.locked; }); return; }
+          if (k === 'b') { this._placeOp('drop'); return; }
+          if (k === 'c') { this._placeOp('center'); return; }
+          if (k === 's') { this._placeOp('stack'); return; }
+          if (k === 'x' || k === 'y' || k === 'z') { this._flip(k); return; }
+        }
       }
       if (this.mode === 'build' && (e.ctrlKey || e.metaKey) && k === 'g') {
         e.preventDefault(); if (e.shiftKey) this._ungroup(); else this._group(); return;

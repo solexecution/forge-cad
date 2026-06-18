@@ -241,6 +241,8 @@ input[type=range]::-moz-range-thumb {
 .ctx-it:hover { background: var(--surface); color: var(--cyan); }
 .ctx-it.ctx-danger:hover { color: var(--red); }
 .ctx-arr { color: var(--ink-dim); font-size: 10px; }
+.ctx-key { color: var(--ink-dim); font-size: 11px; letter-spacing: .02em; white-space: nowrap; }
+.ctx-it:hover .ctx-key { color: var(--ink); }
 .ctx-sep { height: 1px; background: var(--line); margin: 4px 6px; }
 .ctx-sub {
   display: none; position: absolute; left: 100%; top: -6px; min-width: 152px;
