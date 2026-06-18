@@ -648,7 +648,9 @@ export class Viewport {
       this._outline = line;
     }
     if (this.gizmo) {
-      if (em && !em.lock) { this.gizmo.attach(em.mesh); this.gizmo.setMode(this.transformMode); }
+      // Only show the gizmo while actually editing parts — never in result view
+      // or code mode, even if a part stays selected (e.g. picked from the list).
+      if (em && !em.lock && this.editActive) { this.gizmo.attach(em.mesh); this.gizmo.setMode(this.transformMode); }
       else this.gizmo.detach();
     }
   }
