@@ -186,6 +186,7 @@ export class App {
     this.selectedNodes = [];
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
     this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
+    this.multiSelect = false; // sticky additive selection (touch-friendly — taps add to the selection)
     this.project = null;    // current saved project meta {id,name,created,modified,seconds} or null
     this._workSeconds = 0;  // accumulated active-edit time for the current project
     this._recompileTimer = null;
@@ -1295,6 +1296,16 @@ export class App {
     this.root.querySelectorAll('[data-xform]').forEach((b) =>
       b.addEventListener('click', () => this._setXform(b.dataset.xform)));
 
+    // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to
+    // the selection — the way to multi-select on a touchscreen.
+    const multiBtn = this.root.querySelector('#multi-toggle');
+    if (multiBtn) multiBtn.addEventListener('click', () => {
+      this.multiSelect = !this.multiSelect;
+      this.viewport.multiSelect = this.multiSelect;
+      multiBtn.classList.toggle('on', this.multiSelect);
+      this._toast(this.multiSelect ? 'Multi-select on — tap parts to add them' : 'Multi-select off');
+    });
+
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
       b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
@@ -1580,7 +1591,7 @@ export class App {
         </div>`;
       row.addEventListener('mousedown', (e) => {
         if (e.target.closest('input, button, select')) return;
-        this._selectNode(idx, e.shiftKey);
+        this._selectNode(idx, e.shiftKey || this.multiSelect);
       });
       host.appendChild(row);
     });
@@ -1729,6 +1740,7 @@ export class App {
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
               <button data-xform="scale" title="Scale (R)">⤢ size</button>
+              <button id="multi-toggle" title="Multi-select: tap parts to add them to the selection (no Shift needed — for touch)">⊹ multi</button>
             </div>
             <div class="xform" id="viewbar">
               <span class="xform-label">view</span>

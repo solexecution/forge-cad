@@ -58,6 +58,7 @@ export class Viewport {
     this.snapStep = 1;             // mm
     this.magnet = true;            // snap to other parts' edges/centres while dragging
     this.magnetDist = 3;           // snap pull radius (mm)
+    this.multiSelect = false;      // sticky additive selection (taps add — touch-friendly, no Shift needed)
     this.editMeshes = [];          // [{ index, mesh, op }]
     this.selectedIndex = -1;
     this.selectedSet = [];
@@ -248,7 +249,7 @@ export class Viewport {
     };
 
     const c = this.canvas;
-    c.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY, e.button === 2, e.shiftKey));
+    c.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY, e.button === 2, e.shiftKey || this.multiSelect));
     window.addEventListener('mousemove', (e) => { if (dragging || shapeDrag) { this._magnetSuppressed = e.altKey; onMove(e.clientX, e.clientY); } });
     window.addEventListener('mouseup', onUp);
     c.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY); }, { passive: false });
@@ -257,7 +258,7 @@ export class Viewport {
     // Touch: one finger = drag a shape (or orbit on empty), two = pinch-zoom + pan.
     let pinchDist = 0;
     c.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 1) onDown(e.touches[0].clientX, e.touches[0].clientY, false, false);
+      if (e.touches.length === 1) onDown(e.touches[0].clientX, e.touches[0].clientY, false, this.multiSelect);
       else if (e.touches.length === 2) {
         shapeDrag = false;
         pinchDist = Math.hypot(
