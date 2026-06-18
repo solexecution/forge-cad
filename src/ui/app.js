@@ -717,7 +717,7 @@ export class App {
     h += btn('hide', n.hidden ? 'Show' : 'Hide');
     h += sep;
     h += sub('Transform', [['xf:translate', 'Move'], ['xf:rotate', 'Turn'], ['xf:scale', 'Size']]);
-    h += sub('Place', [['place:drop', 'Drop to base'], ['place:center', 'Center on plate'], ['place:level', 'Level (reset turn)'], ['place:scale', 'Reset size'], ['place:stack', 'Stack on top'], ['flip:x', 'Mirror X'], ['flip:y', 'Mirror Y'], ['flip:z', 'Mirror Z']]);
+    h += sub('Place', [['place:drop', 'Drop to base'], ['place:center', 'Center on plate'], ['place:level', 'Level (reset turn)'], ['place:scale', 'Reset size'], ['place:stack', 'Stack on top'], ['placeface', 'Onto a face…'], ['flip:x', 'Mirror X'], ['flip:y', 'Mirror Y'], ['flip:z', 'Mirror Z']]);
     if (can2) h += sub('Align', [['align:x:min', 'X — left'], ['align:x:center', 'X — center'], ['align:x:max', 'X — right'], ['align:y:min', 'Y — front'], ['align:y:center', 'Y — center'], ['align:y:max', 'Y — back'], ['align:z:min', 'Z — down'], ['align:z:center', 'Z — center'], ['align:z:max', 'Z — up']]);
     h += sub('Array', [['arr:x', 'Row along X'], ['arr:y', 'Row along Y'], ['arr:polar', 'Ring']]);
     if (can2) h += btn('group', 'Group');
@@ -751,6 +751,7 @@ export class App {
       case 'group': return this._group();
       case 'ungroup': return this._ungroup();
       case 'explode': return this._explodeNode(i);
+      case 'placeface': return this._placeOnFace();
     }
     const c = act.indexOf(':');
     if (c < 0) return;
@@ -1790,6 +1791,30 @@ export class App {
     this.workplane = null;
     this.viewport.setWorkplane(null);
     this._toast('Workplane: ground');
+  }
+
+  // Drop the selected part flat onto a face you click on another part: orient
+  // its "up" to the face normal and seat its base on the face (snap to surface).
+  _placeOnFace() {
+    if (this.selectedNode < 0) { this._toast('Select a part first, then click a face to drop it onto'); return; }
+    const idx = this.selectedNode;
+    this._toast('Click the face to drop this part onto');
+    this.viewport.armWorkplanePick((info) => {
+      if (!info) { this._toast('Place on face — cancelled'); return; }
+      const node = this.buildTree.nodes[idx];
+      if (!node) return;
+      const ext = this.viewport.shapeLocalZ(idx);
+      const off = ext ? -ext.minZ : 0; // origin -> base, along the face normal
+      const { origin: o, normal: n, rot } = info;
+      const r2 = (v) => Math.round(v * 100) / 100 || 0;
+      node.rot = [...rot];
+      node.pos = [r2(o[0] + n[0] * off), r2(o[1] + n[1] * off), r2(o[2] + n[2] * off)];
+      this._renderBuildTree();
+      this.recompile();
+      this._pushHistory();
+      this._renderAlignBar();
+      this._toast('Placed on face');
+    });
   }
 
   _deleteNode(i) {

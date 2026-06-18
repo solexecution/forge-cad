@@ -368,6 +368,17 @@ export class Viewport {
     return { minZ: bb.min.z, maxZ: bb.max.z };
   }
 
+  // Local Z-extent of a shape (scale baked, NO rotation) — the distance from its
+  // origin to its base, used to seat it on a picked face along the face normal.
+  shapeLocalZ(index) {
+    const em = this.editMeshes.find((e) => e.index === index);
+    if (!em) return null;
+    const g = em.mesh.geometry;
+    g.computeBoundingBox();
+    const sz = em.mesh.scale.z || 1;
+    return { minZ: g.boundingBox.min.z * sz, maxZ: g.boundingBox.max.z * sz };
+  }
+
   // Absolute AABB of a shape in the editGroup (language) frame — for aligning
   // shapes by their min / centre / max edges.
   shapeBounds(index) {
