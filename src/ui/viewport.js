@@ -119,6 +119,7 @@ export class Viewport {
 
     this._setupControls();
     this._setupGizmo();
+    this._setupNavCube();
     this._resize();
     window.addEventListener('resize', () => this._resize());
     this._animate();
@@ -633,6 +634,14 @@ export class Viewport {
       else { phi = Math.PI / 4; theta = Math.PI / 4; } // iso
       apply();
     };
+    // Snap the camera to look from a world-space direction (used by the nav cube).
+    this._target = target;
+    this._setViewDir = (dx, dy, dz) => {
+      const r = Math.hypot(dx, dy, dz) || 1;
+      phi = Math.max(0.001, Math.min(Math.PI - 0.001, Math.acos(Math.max(-1, Math.min(1, dy / r)))));
+      theta = Math.atan2(dz, dx);
+      apply();
+    };
   }
 
   // --- transform gizmo (build mode) ----------------------------------------
@@ -1103,6 +1112,77 @@ export class Viewport {
   }
 
   setView(which) { if (this._setView) this._setView(which); }
+  setViewDir(d) { if (this._setViewDir) this._setViewDir(d.x, d.y, d.z); }
+
+  // --- navigation cube (FreeCAD-style) -------------------------------------
+  // A small labelled cube in the corner that mirrors the camera orientation;
+  // tap a face / edge / corner to snap to that orthographic or iso view.
+  _setupNavCube() {
+    const SZ = 92;
+    const cv = document.createElement('canvas');
+    cv.id = 'nav-cube';
+    cv.title = 'Click a face, edge or corner to snap the view';
+    (this.canvas.parentElement || document.body).appendChild(cv);
+    this._navCanvas = cv;
+
+    const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+    r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    r.setSize(SZ, SZ, false);
+    this._navRenderer = r;
+
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.15));
+    const key = new THREE.DirectionalLight(0xffffff, 0.55); key.position.set(2, 3, 4); scene.add(key);
+    this._navScene = scene;
+
+    // BoxGeometry material order: +X, -X, +Y, -Y, +Z, -Z
+    const labels = ['RIGHT', 'LEFT', 'TOP', 'BOTTOM', 'FRONT', 'BACK'];
+    const mats = labels.map((t) => new THREE.MeshLambertMaterial({ map: this._faceTexture(t) }));
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mats);
+    cube.add(new THREE.LineSegments(new THREE.EdgesGeometry(cube.geometry), new THREE.LineBasicMaterial({ color: 0x4dd0e1, transparent: true, opacity: 0.6 })));
+    scene.add(cube);
+    this._navCube = cube;
+
+    this._navCamera = new THREE.PerspectiveCamera(36, 1, 0.1, 20);
+    this._navRay = new THREE.Raycaster();
+
+    cv.addEventListener('click', (e) => { e.preventDefault(); this._navCubePick(e.clientX, e.clientY); });
+  }
+
+  _faceTexture(text) {
+    const s = 128, c = document.createElement('canvas'); c.width = c.height = s;
+    const x = c.getContext('2d');
+    x.fillStyle = '#272c33'; x.fillRect(0, 0, s, s);
+    x.strokeStyle = '#3a424b'; x.lineWidth = 6; x.strokeRect(4, 4, s - 8, s - 8);
+    x.fillStyle = '#e8eaed'; x.font = 'bold 21px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(text, s / 2, s / 2);
+    const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+  }
+
+  _renderNavCube() {
+    if (!this._navRenderer || !this._target) return;
+    const dir = this.camera.position.clone().sub(this._target);
+    if (dir.lengthSq() < 1e-6) return;
+    dir.normalize().multiplyScalar(2.6);
+    this._navCamera.position.copy(dir);
+    this._navCamera.up.copy(this.camera.up);
+    this._navCamera.lookAt(0, 0, 0);
+    this._navRenderer.render(this._navScene, this._navCamera);
+  }
+
+  // Tap on the cube → the clicked zone (face / edge / corner) → a snap direction.
+  _navCubePick(clientX, clientY) {
+    const rect = this._navCanvas.getBoundingClientRect();
+    this._navRay.setFromCamera(new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    ), this._navCamera);
+    const hit = this._navRay.intersectObject(this._navCube, false)[0];
+    if (!hit) return;
+    const p = hit.point; // on a unit cube (±0.5)
+    const comp = [p.x, p.y, p.z].map((v) => (Math.abs(v) > 0.31 ? Math.sign(v) : 0));
+    if (comp.some(Boolean)) this.setViewDir({ x: comp[0], y: comp[1], z: comp[2] });
+  }
 
   toggleGrid() {
     const v = !this.grid.visible;
@@ -1141,5 +1221,6 @@ export class Viewport {
     this._resize();
     this._updateMeasureLabel();
     this.renderer.render(this.scene, this.camera);
+    this._renderNavCube();
   }
 }
