@@ -20,6 +20,7 @@ const COLORS = {
   glowHole: 0x5a1a18,
   buildVol: 0x3a4048,
   buildVolBad: 0xef5350,
+  measure: 0xffb74d,
 };
 
 // Printable build volume of the target printer (Bambu A1 mini = 180×180×180 mm).
@@ -82,6 +83,9 @@ export class Viewport {
     this._raycaster = new THREE.Raycaster();
     this._ndc = new THREE.Vector2();
     this._outline = null;
+    this._measure = { on: false, a: null, b: null, group: null }; // measure tool
+    this.measureLabel = null; // DOM overlay positioned at the segment midpoint
+    this.onMeasure = null;    // (info|null) — { dist, x, y, z } in mm
 
     this._setupControls();
     this._setupGizmo();
@@ -153,6 +157,106 @@ export class Viewport {
     this._raycaster.setFromCamera(this._ndcFrom(clientX, clientY), this.camera);
     const hits = this._raycaster.intersectObjects(this.editMeshes.map((e) => e.mesh), false);
     return hits.length ? hits[0] : null;
+  }
+
+  // --- measure tool ---------------------------------------------------------
+  // Click two surface points (vertex-snapped) for a live distance + ΔX/Y/Z
+  // readout. Works in build (per-shape meshes) and result/code (merged mesh).
+  setMeasureMode(on) {
+    this._measure.on = !!on;
+    if (!on) this._clearMeasure();
+    this.canvas.style.cursor = on ? 'crosshair' : '';
+  }
+
+  _clearMeasure() {
+    const m = this._measure;
+    if (m.group) { this.scene.remove(m.group); m.group.traverse((o) => o.geometry?.dispose()); m.group = null; }
+    m.a = m.b = null;
+    if (this.measureLabel) this.measureLabel.style.display = 'none';
+    if (this.onMeasure) this.onMeasure(null);
+  }
+
+  _measurePick(clientX, clientY) {
+    const p = this._pickSurfacePoint(clientX, clientY);
+    if (!p) return;
+    const m = this._measure;
+    if (!m.a || m.b) { m.a = p; m.b = null; } // first point, or restart after a pair
+    else m.b = p;
+    this._renderMeasure();
+    if (this.onMeasure) this.onMeasure(m.b ? this._measureInfo() : null);
+  }
+
+  // Raycast the visible solid geometry (build per-shape meshes + the merged
+  // result mesh) and return the hit point, vertex-snapped near corners.
+  _pickSurfacePoint(clientX, clientY) {
+    this.editGroup.updateMatrixWorld(true);
+    this._raycaster.setFromCamera(this._ndcFrom(clientX, clientY), this.camera);
+    const targets = [];
+    if (this.editActive) for (const e of this.editMeshes) targets.push(e.mesh);
+    for (const c of this.modelGroup.children) if (c.isMesh) targets.push(c);
+    const hits = this._raycaster.intersectObjects(targets, false);
+    return hits.length ? this._snapVertex(hits[0]) : null;
+  }
+
+  // Snap to the nearest vertex of the hit triangle when the click lands close to
+  // a corner (so corner-to-corner reads exact); else the precise surface point.
+  _snapVertex(hit) {
+    const pt = hit.point.clone();
+    const geo = hit.object.geometry, face = hit.face;
+    if (geo && face && geo.attributes.position) {
+      const pos = geo.attributes.position;
+      let best = null, bd = Infinity;
+      for (const vi of [face.a, face.b, face.c]) {
+        const v = hit.object.localToWorld(new THREE.Vector3().fromBufferAttribute(pos, vi));
+        const d = v.distanceTo(pt);
+        if (d < bd) { bd = d; best = v; }
+      }
+      if (best && bd < this.camera.position.distanceTo(pt) * 0.03) return best;
+    }
+    return pt;
+  }
+
+  _renderMeasure() {
+    const m = this._measure;
+    if (m.group) { this.scene.remove(m.group); m.group.traverse((o) => o.geometry?.dispose()); m.group = null; }
+    if (!m.a) return;
+    if (!this._measureMat) {
+      this._measureMat = new THREE.MeshBasicMaterial({ color: COLORS.measure });
+      this._measureLineMat = new THREE.LineBasicMaterial({ color: COLORS.measure });
+    }
+    const g = new THREE.Group();
+    const mk = (p) => {
+      const r = this.camera.position.distanceTo(p) * 0.012;
+      const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), this._measureMat);
+      s.position.copy(p); return s;
+    };
+    g.add(mk(m.a));
+    if (m.b) {
+      g.add(mk(m.b));
+      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([m.a, m.b]), this._measureLineMat));
+    }
+    this.scene.add(g);
+    m.group = g;
+  }
+
+  _measureInfo() {
+    const m = this._measure;
+    if (!m.a || !m.b) return null;
+    // world delta -> manifold/printer space: model = (wx, -wz, wy)
+    const dx = m.b.x - m.a.x, dy = m.b.y - m.a.y, dz = m.b.z - m.a.z;
+    return { dist: m.a.distanceTo(m.b), x: Math.abs(dx), y: Math.abs(dz), z: Math.abs(dy) };
+  }
+
+  // Keep the floating distance label glued to the segment midpoint each frame.
+  _updateMeasureLabel() {
+    const m = this._measure, el = this.measureLabel;
+    if (!el) return;
+    if (!(m.on && m.a && m.b)) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
+    const mid = m.a.clone().add(m.b).multiplyScalar(0.5).project(this.camera);
+    const r = this.canvas.getBoundingClientRect();
+    el.style.left = ((mid.x * 0.5 + 0.5) * r.width) + 'px';
+    el.style.top = ((-mid.y * 0.5 + 0.5) * r.height) + 'px';
+    el.style.display = (mid.z < 1) ? 'block' : 'none';
   }
 
   _setupControls() {
@@ -254,6 +358,10 @@ export class Viewport {
     const onDown = (x, y, pan, additive) => {
       if (this._gizmoDragging || (this.gizmo && this.gizmo.axis)) return; // a gizmo handle is grabbed
       if (this._planePick) { this._doPlanePick(x, y); return; } // arming a workplane pick
+      if (this._measure.on && !pan) { // measure: left-drag still orbits, a clean click measures
+        downOnCanvas = true; downX = x; downY = y; moved = 0;
+        this._measurePending = true; startOrbit(x, y, false); return;
+      }
       downOnCanvas = true; downAdditive = additive;
       downX = x; downY = y; moved = 0;
       const hit = pan ? null : this._pickShape(x, y);
@@ -268,6 +376,11 @@ export class Viewport {
     const onUp = () => {
       if (!downOnCanvas) return; // ignore mouseups that didn't start on the canvas (e.g. panel clicks)
       downOnCanvas = false;
+      if (this._measurePending) { // measure mode: a click (not a drag) places a point
+        this._measurePending = false; dragging = false; panning = false;
+        if (moved < 4) this._measurePick(downX, downY);
+        return;
+      }
       if (shapeDrag) {
         const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
         if (em && this.onShapeMoveEnd) this.onShapeMoveEnd(this.selectedIndex,
@@ -552,6 +665,7 @@ export class Viewport {
   // --- code mode: one merged solid -----------------------------------------
 
   setModel(manifold, { showEdges = true } = {}) {
+    if (this._measure && this._measure.a) this._clearMeasure(); // points reference old geometry
     this.clearHighlight(); // its geometry/material are ours to free before the wipe
     while (this.modelGroup.children.length) {
       const child = this.modelGroup.children.pop();
@@ -705,6 +819,7 @@ export class Viewport {
   }
 
   setEditShapes(items) {
+    if (this._measure && this._measure.a) this._clearMeasure(); // points reference old geometry
     // free previous meshes/geometries
     for (const e of this.editMeshes) {
       this.editGroup.remove(e.mesh);
@@ -827,6 +942,7 @@ export class Viewport {
   _animate() {
     requestAnimationFrame(() => this._animate());
     this._resize();
+    this._updateMeasureLabel();
     this.renderer.render(this.scene, this.camera);
   }
 }

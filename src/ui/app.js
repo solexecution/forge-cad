@@ -1611,6 +1611,20 @@ export class App {
       this.recompile();
     });
 
+    // measure tool: toggle + floating distance label fed by the viewport
+    this.viewport.measureLabel = this.root.querySelector('#measure-label');
+    this.viewport.onMeasure = (info) => {
+      const el = this.viewport.measureLabel;
+      if (info && el) el.innerHTML =
+        `<b>${info.dist.toFixed(1)} mm</b><span>X ${info.x.toFixed(1)} · Y ${info.y.toFixed(1)} · Z ${info.z.toFixed(1)}</span>`;
+    };
+    const measBtn = this.root.querySelector('#v-measure');
+    if (measBtn) measBtn.addEventListener('click', () => {
+      this.measureMode = !this.measureMode;
+      this.viewport.setMeasureMode(this.measureMode);
+      measBtn.classList.toggle('on', this.measureMode);
+    });
+
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
       b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
@@ -2049,6 +2063,7 @@ export class App {
             <button class="icon-btn" id="v-wire" title="Toggle wireframe">◇</button>
             <button class="icon-btn" id="v-layers" title="Layer preview — slice into layers">≣</button>
             <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
+            <button class="icon-btn" id="v-measure" title="Measure distance — click two points">📏</button>
             <select class="quality-sel" id="v-quality" title="Curve smoothness for round shapes (cylinders, spheres…)">
               <option value="24">◍ Draft</option>
               <option value="48">◍ Standard</option>
@@ -2309,6 +2324,8 @@ export class App {
             <div class="hud-row"><span class="hud-key">fit</span><span id="hud-fit" class="hud-ok">—</span></div>
           </div>
         </div>
+
+        <div class="measure-label" id="measure-label"></div>
 
         <div class="status">
           <span id="status-dot" class="status-dot state-empty"></span>

@@ -93,6 +93,15 @@ body {
 }
 .quality-sel:hover { border-color: var(--cyan); color: var(--cyan); }
 .quality-sel:focus { outline: none; border-color: var(--cyan); }
+
+.measure-label {
+  position: absolute; transform: translate(-50%, -135%); pointer-events: none;
+  background: var(--amber); color: var(--bg); font-family: var(--mono);
+  font-size: 12px; font-weight: 700; line-height: 1.25; text-align: center;
+  padding: 3px 8px; border-radius: 7px; white-space: nowrap; z-index: 20; display: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+}
+.measure-label span { display: block; font-weight: 500; font-size: 9px; opacity: .8; }
 .icon-btn:disabled { opacity: .3; cursor: default; }
 .icon-btn:disabled:hover { border-color: var(--line); color: var(--ink); }
 
