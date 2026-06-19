@@ -1925,8 +1925,11 @@ export class App {
     $('#panel-toggle').addEventListener('click', () => this._setPanel());
 
     // export dropdown
+    // open one top-bar menu at a time (closing one's siblings — stopPropagation
+    // otherwise stops their document-level close handlers from firing)
+    const openMenu = (m) => { const was = m.classList.contains('open'); this.root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open')); if (!was) m.classList.add('open'); };
     const menu = $('#export-menu');
-    $('#export-btn').addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('open'); });
+    $('#export-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(menu); });
     const out = (fn, name) => { if (this.currentModel) triggerDownload(fn(this.currentModel), name); menu.classList.remove('open'); };
     $('#btn-stl').addEventListener('click', () => out(exportSTL, 'part.stl'));
     $('#btn-3mf').addEventListener('click', () => { if (this.currentModel) triggerDownload(this._build3MF(), 'part.3mf'); menu.classList.remove('open'); });
@@ -1935,14 +1938,14 @@ export class App {
 
     // templates dropdown
     const tpl = $('#tpl-menu');
-    $('#tpl-btn').addEventListener('click', (e) => { e.stopPropagation(); tpl.classList.toggle('open'); });
+    $('#tpl-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(tpl); });
     this.root.querySelectorAll('[data-tpl]').forEach((b) =>
       b.addEventListener('click', () => { this._loadTemplate(b.dataset.tpl); tpl.classList.remove('open'); }));
     document.addEventListener('click', () => tpl.classList.remove('open'));
 
     // projects (File) dropdown
     const proj = $('#proj-menu');
-    $('#proj-btn').addEventListener('click', (e) => { e.stopPropagation(); proj.classList.toggle('open'); });
+    $('#proj-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(proj); });
     document.addEventListener('click', () => proj.classList.remove('open'));
     $('#proj-new').addEventListener('click', () => this._newProject());
     $('#proj-save').addEventListener('click', () => this._saveProject());
