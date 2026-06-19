@@ -433,6 +433,17 @@ export class App {
     }
   }
 
+  // Print-prep overlays (cut-in-half, overhang) render on the merged RESULT
+  // view, where individual parts aren't selectable. Keep the view in sync so
+  // turning one ON shows the result and turning the LAST one OFF returns to the
+  // editable parts — otherwise selection gets stuck after a cut.
+  _syncPrepView() {
+    if (this.mode !== 'build') return;
+    const needsResult = this.printCut > 0 || this.overhangMode;
+    if (needsResult && this.viewMode !== 'result') this._setViewMode('result');
+    else if (!needsResult && this.viewMode !== 'edit') this._setViewMode('edit');
+  }
+
   // All node indices that share a node's group (or just itself if ungrouped).
   _members(i) {
     const nodes = this.buildTree.nodes;
@@ -2112,7 +2123,7 @@ export class App {
     const ohBtn = this.root.querySelector('#v-overhang');
     if (ohBtn) ohBtn.addEventListener('click', () => {
       this.overhangMode = !this.overhangMode;
-      if (this.overhangMode && this.mode === 'build' && this.viewMode !== 'result') this._setViewMode('result');
+      this._syncPrepView(); // result while checking overhangs; back to parts when off
       const on = this.viewport.setOverhangView(this.overhangMode);
       ohBtn.classList.toggle('on', on);
     });
@@ -2127,10 +2138,12 @@ export class App {
     if (cutBtn) cutBtn.addEventListener('click', () => {
       this.printCut = this.printCut > 0 ? 0 : 4; // toggle; 4 mm gap between halves
       cutBtn.classList.toggle('on', this.printCut > 0);
-      if (this.printCut > 0 && this.mode === 'build' && this.viewMode !== 'result') this._setViewMode('result');
+      this._syncPrepView(); // result while cut; back to editable parts when removed
       this.recompile();
       this._pushHistory();
-      this._toast(this.printCut > 0 ? 'Cut in half — two pieces to print & glue' : 'Cut removed');
+      this._toast(this.printCut > 0
+        ? 'Cut in half — showing the result. Switch to ◧ edit (Tools) to keep moving parts.'
+        : 'Cut removed — back to editing.');
     });
 
     // build view toggle: edit (parts + ghost) vs result (combined solid)
