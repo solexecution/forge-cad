@@ -86,7 +86,7 @@ export function createNode(kind) {
     fillet: 0, // edge radius (mm): >0 rounds (or bevels) the part's convex edges
     bevel: false, // fillet style: false = round, true = chamfer
     group: null, // group id; members combine (and scope their holes) together
-    groupMode: 'union', // how a group combines: union | subtract | intersect
+    groupMode: 'union', // how a group combines: union | subtract | intersect | hull
     collapsed: false, // UI: part card folded to just its header
     fields,
   };
@@ -282,7 +282,9 @@ function groupBlock(nodes) {
   if (solids.length === 0) return null;
   const mode = (nodes.find((n) => n.groupMode) || {}).groupMode || 'union';
   let body;
-  if (mode === 'intersect' && solids.length > 1) {
+  if (mode === 'hull' && solids.length > 1) {
+    body = `hull() { ${solids.join(' ')} }`; // smooth convex blend across the parts
+  } else if (mode === 'intersect' && solids.length > 1) {
     body = `intersection() { ${solids.join(' ')} }`;
   } else if (mode === 'subtract' && solids.length > 1) {
     body = `difference() { ${solids[0]} ${solids.slice(1).join(' ')} }`; // first minus the rest

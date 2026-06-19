@@ -728,7 +728,7 @@ export class App {
     if (can2) h += sub('Align', [['align:x:min', 'X — left'], ['align:x:center', 'X — center'], ['align:x:max', 'X — right'], ['align:y:min', 'Y — front'], ['align:y:center', 'Y — center'], ['align:y:max', 'Y — back'], ['align:z:min', 'Z — down'], ['align:z:center', 'Z — center'], ['align:z:max', 'Z — up']]);
     h += sub('Array', [['arr:x', 'Row along X'], ['arr:y', 'Row along Y'], ['arr:polar', 'Ring']]);
     if (can2) h += btn('group', 'Group');
-    if (hasGroup) { h += btn('ungroup', 'Ungroup'); h += sub('Combine', [['gmode:union', 'Join (∪)'], ['gmode:subtract', 'Subtract (∖)'], ['gmode:intersect', 'Intersect (∩)']]); }
+    if (hasGroup) { h += btn('ungroup', 'Ungroup'); h += sub('Combine', [['gmode:union', 'Join (∪)'], ['gmode:subtract', 'Subtract (∖)'], ['gmode:intersect', 'Intersect (∩)'], ['gmode:hull', 'Hull / blend (⬭)']]); }
     h += sep;
     h += btn('explode', 'Break apart');
     h += btn('del', 'Delete', true);
@@ -2324,6 +2324,7 @@ export class App {
               <button data-gmode="union" title="Join (union)">∪</button>
               <button data-gmode="subtract" title="Subtract — first part minus the rest">∖</button>
               <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
+              <button data-gmode="hull" title="Hull — smooth blend / loft across the parts">⬭</button>
             </div>
           </div>
         </div>
