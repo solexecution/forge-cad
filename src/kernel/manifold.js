@@ -278,6 +278,17 @@ export function nutTrap(acrossFlats = 5.5, nutThick = 2.6, boltD = 3.4, shaftDep
   const out = hex.add(shaft); hex.delete(); shaft.delete(); return out;
 }
 
+// Keyhole slot for hanging on a screw: a big head hole + a narrower slot
+// extending from it (the screw head enters the hole, then the part slides so the
+// shaft sits in the slot). Extruded through `depth`; base on the plate.
+export function keyhole(headD = 8, slotW = 4, length = 12, depth = 6) {
+  const M = kernel().Manifold, seg = CURVE_SEGMENTS;
+  const head = M.cylinder(Math.max(0.5, depth), headD / 2, headD / 2, seg, false);
+  const slot = M.cube([Math.max(0.5, slotW), Math.max(0.5, length), Math.max(0.5, depth)], false)
+    .translate([-slotW / 2, 0, 0]);
+  const out = head.add(slot); head.delete(); slot.delete(); return out;
+}
+
 // Stadium / slot prism: a rounded-end bar (hull of two cylinders). `length` is
 // the overall length, `radius` the end radius (half-width). Centred.
 export function slot(length, radius, height, segments = 48) {

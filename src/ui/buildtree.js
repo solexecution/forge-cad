@@ -28,6 +28,7 @@ const DEFS = {
   countersink: { fields: [['shaftD', 3.4], ['depth', 12], ['headD', 6.5]] },
   insertHole:  { fields: [['insertD', 4], ['depth', 6]] },
   nutTrap:     { fields: [['af', 5.5], ['nutThick', 2.6], ['boltD', 3.4], ['shaftDepth', 14]] },
+  keyhole:     { fields: [['headD', 8], ['slotW', 4], ['length', 12], ['depth', 6]] },
   text:       { fields: [['str', 'Text', 'text'], ['size', 12], ['height', 4]] },
   imported:   { fields: [] }, // geometry comes from a registered mesh (node.meshId)
   thread:     { fields: [['d', 12], ['pitch', 2.5], ['length', 24]] }, // threaded rod
@@ -60,6 +61,7 @@ function baseHalfHeight(kind, get) {
     case 'countersink': return 0;
     case 'insertHole':  return 0;
     case 'nutTrap':     return 0;
+    case 'keyhole':     return 0;
     case 'text':       return 0; // built base-on-plate, lying flat
     case 'imported':   return 0; // STL centred on X/Y, base on the plate
     case 'thread':     return 0; // threaded rod, base on the plate
@@ -265,6 +267,7 @@ function baseShapeCall(node) {
     case 'countersink': return `countersink(${f('shaftD')}, ${f('depth')}, ${f('headD')})`;
     case 'insertHole':  return `insertHole(${f('insertD')}, ${f('depth')})`;
     case 'nutTrap':     return `nutTrap(${f('af')}, ${f('nutThick')}, ${f('boltD')}, ${f('shaftDepth')})`;
+    case 'keyhole':     return `keyhole(${f('headD')}, ${f('slotW')}, ${f('length')}, ${f('depth')})`;
     case 'text':       return `text("${String(f('str')).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}", ${f('size')}, ${f('height')})`;
     case 'imported':   return `imported("${node.meshId || ''}")`;
     case 'thread':     return `thread(${f('length')}, ${f('pitch')}, ${f('d')})`;
