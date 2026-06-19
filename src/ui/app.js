@@ -12,7 +12,7 @@ import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { buildTreeToSource, buildColoredParts, effField, supportsClearance, BuildTree, setNodeKind } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
@@ -1957,6 +1957,13 @@ export class App {
             <button class="bn-ic bn-del" data-del="${idx}" title="Delete">✕</button>
           </div>
         </div>
+        ${isFastener(node.kind) ? `<div class="bn-size">
+          <label>standard size<select data-size="${idx}">
+            <option value="">custom</option>
+            ${METRIC_SIZES.map((s) => `<option value="${s.key}" ${currentMetricSize(node) === s.key ? 'selected' : ''}>${s.key}</option>`).join('')}
+          </select></label>
+          <span class="bn-size-hint">sets Ø + pitch${node.kind === 'thread' ? '' : ' + hex'}</span>
+        </div>` : ''}
         <div class="bn-fields">${dims}</div>
         <div class="bn-fields bn-xyz">
           <label data-unit="mm">x<input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0"></label>
@@ -2029,6 +2036,11 @@ export class App {
     }));
     host.querySelectorAll('[data-clear]').forEach((el) => el.addEventListener('input', () => {
       nodes[+el.dataset.clear].clearance = parseFloat(el.value) || 0; this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-size]').forEach((el) => el.addEventListener('change', () => {
+      if (!el.value) return;
+      applyMetricSize(nodes[+el.dataset.size], el.value);
+      this._renderBuildTree(); this.recompile(); this._pushHistory();
     }));
     this._updateCollapseAllLabel();
   }

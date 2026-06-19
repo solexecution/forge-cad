@@ -109,6 +109,42 @@ export function setNodeKind(node, kind) {
   node.pos[2] = baseHalfHeight(kind, get);
 }
 
+// Standard ISO metric coarse-thread fasteners: diameter, coarse pitch, hex
+// across-flats (wrench size), bolt-head height, nut thickness. Picking a size
+// fills these so printed bolts / nuts / threaded rods come out to spec.
+export const METRIC_SIZES = [
+  { key: 'M2',   d: 2,   pitch: 0.4,  af: 4,   headH: 1.4, thickness: 1.6 },
+  { key: 'M2.5', d: 2.5, pitch: 0.45, af: 5,   headH: 1.7, thickness: 2.0 },
+  { key: 'M3',   d: 3,   pitch: 0.5,  af: 5.5, headH: 2.0, thickness: 2.4 },
+  { key: 'M4',   d: 4,   pitch: 0.7,  af: 7,   headH: 2.8, thickness: 3.2 },
+  { key: 'M5',   d: 5,   pitch: 0.8,  af: 8,   headH: 3.5, thickness: 4.0 },
+  { key: 'M6',   d: 6,   pitch: 1.0,  af: 10,  headH: 4.0, thickness: 5.0 },
+  { key: 'M8',   d: 8,   pitch: 1.25, af: 13,  headH: 5.3, thickness: 6.5 },
+  { key: 'M10',  d: 10,  pitch: 1.5,  af: 17,  headH: 6.4, thickness: 8.0 },
+  { key: 'M12',  d: 12,  pitch: 1.75, af: 19,  headH: 7.5, thickness: 10  },
+];
+
+export function isFastener(kind) { return kind === 'thread' || kind === 'bolt' || kind === 'nut'; }
+
+// Set a fastener node's fields to a standard metric size — only the fields the
+// shape actually has (length is left alone).
+export function applyMetricSize(node, key) {
+  const m = METRIC_SIZES.find((s) => s.key === key);
+  if (!m) return;
+  const set = (k, v) => { const f = node.fields.find((x) => x.key === k); if (f) f.value = v; };
+  set('d', m.d); set('pitch', m.pitch);
+  set('headAF', m.af); set('af', m.af);                 // bolt head / nut across-flats
+  set('headH', m.headH); set('thickness', m.thickness); // bolt head height / nut thickness
+}
+
+// The standard size matching a node's current diameter + pitch, or '' (custom).
+export function currentMetricSize(node) {
+  const d = (node.fields.find((x) => x.key === 'd') || {}).value;
+  const p = (node.fields.find((x) => x.key === 'pitch') || {}).value;
+  const m = METRIC_SIZES.find((s) => s.d === d && s.pitch === p);
+  return m ? m.key : '';
+}
+
 // Radial / cross-section dimension keys a fit clearance adjusts, per shape.
 const CLEARANCE_KEYS = {
   cylinder: ['r'], cone: ['r1', 'r2'], sphere: ['r'], prism: ['r'], pyramid: ['r'],
