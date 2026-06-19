@@ -16,6 +16,7 @@ const PRIMS = new Set([
   'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge',
   'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder',
   'tube', 'prism', 'gear', 'text', 'imported', 'thread', 'bolt', 'nut',
+  'counterbore', 'countersink', 'insertHole',
 ]);
 
 const MATH = {

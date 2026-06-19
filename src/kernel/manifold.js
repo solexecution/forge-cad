@@ -237,6 +237,38 @@ export function gear(teeth, module = 2, height = 6, bore = 0) {
   return out;
 }
 
+// --- screw / insert holes -------------------------------------------------
+// Built base-on-plate with the opening UP. Mark them as holes and seat the
+// opening at a surface to cut a ready-to-use screw or insert pocket.
+
+// Counterbore: clearance shaft + a wider flat pocket so a socket-head cap screw
+// sits below the surface.
+export function counterbore(shaftD = 3.4, depth = 12, headD = 6, headDepth = 3.5) {
+  const M = kernel().Manifold, seg = CURVE_SEGMENTS;
+  const shaft = M.cylinder(Math.max(0.5, depth), shaftD / 2, shaftD / 2, seg, false);
+  const bore = M.cylinder(Math.max(0.2, headDepth), headD / 2, headD / 2, seg, false).translate([0, 0, depth]);
+  const out = shaft.add(bore); shaft.delete(); bore.delete(); return out;
+}
+
+// Countersink: clearance shaft + a ~90 degree conical mouth so a flat-head screw
+// sits flush.
+export function countersink(shaftD = 3.4, depth = 12, headD = 6.5) {
+  const M = kernel().Manifold, seg = CURVE_SEGMENTS;
+  const coneH = Math.max(0.4, (headD - shaftD) / 2);
+  const shaft = M.cylinder(Math.max(0.5, depth), shaftD / 2, shaftD / 2, seg, false);
+  const sink = M.cylinder(coneH, shaftD / 2, headD / 2, seg, false).translate([0, 0, depth]);
+  const out = shaft.add(sink); shaft.delete(); sink.delete(); return out;
+}
+
+// Heat-set insert pocket: a straight bore at the insert diameter with a small
+// lead-in chamfer at the mouth.
+export function insertHole(insertD = 4, depth = 6) {
+  const M = kernel().Manifold, seg = CURVE_SEGMENTS;
+  const body = M.cylinder(Math.max(0.5, depth), insertD / 2, insertD / 2, seg, false);
+  const lead = M.cylinder(1.2, insertD / 2, insertD / 2 + 0.6, seg, false).translate([0, 0, Math.max(0, depth - 1.2)]);
+  const out = body.add(lead); body.delete(); lead.delete(); return out;
+}
+
 // Stadium / slot prism: a rounded-end bar (hull of two cylinders). `length` is
 // the overall length, `radius` the end radius (half-width). Centred.
 export function slot(length, radius, height, segments = 48) {

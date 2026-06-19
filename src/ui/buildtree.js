@@ -24,6 +24,9 @@ const DEFS = {
   tube:       { fields: [['h', 20], ['router', 12], ['rinner', 7]] },
   prism:      { fields: [['h', 20], ['r', 12], ['sides', 6]] },
   gear:       { fields: [['teeth', 16], ['module', 2], ['h', 6], ['bore', 4]] },
+  counterbore: { fields: [['shaftD', 3.4], ['depth', 12], ['headD', 6], ['headDepth', 3.5]] },
+  countersink: { fields: [['shaftD', 3.4], ['depth', 12], ['headD', 6.5]] },
+  insertHole:  { fields: [['insertD', 4], ['depth', 6]] },
   text:       { fields: [['str', 'Text', 'text'], ['size', 12], ['height', 4]] },
   imported:   { fields: [] }, // geometry comes from a registered mesh (node.meshId)
   thread:     { fields: [['d', 12], ['pitch', 2.5], ['length', 24]] }, // threaded rod
@@ -52,6 +55,9 @@ function baseHalfHeight(kind, get) {
     case 'tube':       return get('h') / 2;
     case 'prism':      return get('h') / 2;
     case 'gear':       return get('h') / 2;
+    case 'counterbore': return 0;
+    case 'countersink': return 0;
+    case 'insertHole':  return 0;
     case 'text':       return 0; // built base-on-plate, lying flat
     case 'imported':   return 0; // STL centred on X/Y, base on the plate
     case 'thread':     return 0; // threaded rod, base on the plate
@@ -253,6 +259,9 @@ function baseShapeCall(node) {
     case 'tube':       return `tube(${f('h')}, ${f('router')}, ${f('rinner')})`;
     case 'prism':      return `prism(${f('h')}, ${f('r')}, ${f('sides')})`;
     case 'gear':       return `gear(${f('teeth')}, ${f('module')}, ${f('h')}, ${f('bore')})`;
+    case 'counterbore': return `counterbore(${f('shaftD')}, ${f('depth')}, ${f('headD')}, ${f('headDepth')})`;
+    case 'countersink': return `countersink(${f('shaftD')}, ${f('depth')}, ${f('headD')})`;
+    case 'insertHole':  return `insertHole(${f('insertD')}, ${f('depth')})`;
     case 'text':       return `text("${String(f('str')).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}", ${f('size')}, ${f('height')})`;
     case 'imported':   return `imported("${node.meshId || ''}")`;
     case 'thread':     return `thread(${f('length')}, ${f('pitch')}, ${f('d')})`;

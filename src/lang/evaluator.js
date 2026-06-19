@@ -178,6 +178,12 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.prism(arg(0, 'h'), arg(1, 'r'), arg(2, 'sides', 6))));
       case 'gear':
         return mark(track(K.gear(arg(0, 'teeth', 16), arg(1, 'module', 2), arg(2, 'h', 6), arg(3, 'bore', 0))));
+      case 'counterbore':
+        return mark(track(K.counterbore(arg(0, 'shaftD', 3.4), arg(1, 'depth', 12), arg(2, 'headD', 6), arg(3, 'headDepth', 3.5))));
+      case 'countersink':
+        return mark(track(K.countersink(arg(0, 'shaftD', 3.4), arg(1, 'depth', 12), arg(2, 'headD', 6.5))));
+      case 'insertHole':
+        return mark(track(K.insertHole(arg(0, 'insertD', 4), arg(1, 'depth', 6))));
       case 'roundedCylinder':
         return mark(track(K.roundedCylinder(arg(0, 'h'), arg(1, 'r'), arg(2, 'fillet', 2))));
       case 'chamferedBox':
