@@ -114,6 +114,8 @@ export class Viewport {
     this.measureLabel = null; // DOM overlay positioned at the segment midpoint
     this._pins = []; // pinned dimension annotations (persist across recompiles)
     this.onMeasure = null;    // (info|null) — { dist, x, y, z } in mm
+    this._sketch = { on: false, pts: [], cursor: null, group: null }; // sketch → extrude
+    this.onSketchComplete = null; // (points:[[x,y],…]) — a closed polygon was drawn
 
     this._setupControls();
     this._setupGizmo();
@@ -331,6 +333,104 @@ export class Viewport {
     el.style.display = (mid.z < 1) ? 'block' : 'none';
   }
 
+  // --- sketch → extrude (draw a polygon on the ground workplane) ------------
+  setSketchMode(on) {
+    this._sketch.on = on;
+    this._sketch.pts = [];
+    this._sketch.cursor = null;
+    this._clearSketch();
+    if (on) this._renderSketch();
+    this.canvas.style.cursor = on ? 'crosshair' : '';
+  }
+
+  sketchUndoPoint() { if (this._sketch.pts.length) { this._sketch.pts.pop(); this._renderSketch(); } }
+
+  cancelSketch() { this.setSketchMode(false); }
+
+  finishSketch() {
+    const pts = this._sketch.pts.slice();
+    this._sketch.on = false;
+    this._clearSketch();
+    this.canvas.style.cursor = '';
+    const ok = pts.length >= 3;
+    if (ok && this.onSketchComplete) this.onSketchComplete(pts);
+    return ok;
+  }
+
+  // Pointer → a grid-snapped point on the ground workplane, in model (x, y).
+  _groundPoint(clientX, clientY) {
+    this._raycaster.setFromCamera(this._ndcFrom(clientX, clientY), this.camera);
+    const plane = this._groundPlane || (this._groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+    const hit = new THREE.Vector3();
+    if (!this._raycaster.ray.intersectPlane(plane, hit)) return null;
+    const local = this.editGroup.worldToLocal(hit.clone());
+    const s = (v) => (this.snap ? Math.round(v / this.snapStep) * this.snapStep : Math.round(v * 100) / 100);
+    return { x: s(local.x), y: s(local.y) };
+  }
+
+  // Client-px position of a model-space [x, y] point (to hit-test the first dot).
+  _modelToScreen(pt) {
+    const w = this.editGroup.localToWorld(new THREE.Vector3(pt[0], pt[1], 0)).project(this.camera);
+    const r = this.canvas.getBoundingClientRect();
+    return { x: (w.x * 0.5 + 0.5) * r.width + r.left, y: (-w.y * 0.5 + 0.5) * r.height + r.top };
+  }
+
+  // A clean click while sketching: close the loop near the first vertex, else add.
+  _sketchClick(clientX, clientY) {
+    const p = this._groundPoint(clientX, clientY);
+    if (!p) return;
+    const pts = this._sketch.pts;
+    if (pts.length >= 3) {
+      const sp = this._modelToScreen(pts[0]);
+      if (sp && Math.hypot(sp.x - clientX, sp.y - clientY) < 16) { this.finishSketch(); return; }
+    }
+    const last = pts[pts.length - 1];
+    if (last && last[0] === p.x && last[1] === p.y) return; // ignore a no-move repeat
+    pts.push([p.x, p.y]);
+    this._renderSketch();
+  }
+
+  _sketchHover(clientX, clientY) {
+    if (!this._sketch.on) return;
+    const p = this._groundPoint(clientX, clientY);
+    if (p) { this._sketch.cursor = [p.x, p.y]; this._renderSketch(); }
+  }
+
+  _sketchMats() {
+    if (this._sketchLineMat) return;
+    this._sketchLineMat = new THREE.LineBasicMaterial({ color: 0x4dd0e1, depthTest: false, transparent: true });
+    this._sketchCloseMat = new THREE.LineBasicMaterial({ color: 0xffb74d, depthTest: false, transparent: true, opacity: 0.65 });
+    this._sketchDotMat = new THREE.PointsMaterial({ color: 0x4dd0e1, size: 9, sizeAttenuation: false, depthTest: false });
+    this._sketchFirstMat = new THREE.PointsMaterial({ color: 0xffb74d, size: 14, sizeAttenuation: false, depthTest: false });
+  }
+
+  _clearSketch() {
+    const g = this._sketch.group;
+    if (!g) return;
+    while (g.children.length) { const c = g.children.pop(); c.geometry?.dispose(); }
+    this.editGroup.remove(g);
+    this._sketch.group = null;
+  }
+
+  _renderSketch() {
+    this._clearSketch();
+    if (!this._sketch.on) return;
+    this._sketchMats();
+    const g = new THREE.Group();
+    const pts = this._sketch.pts;
+    const v = pts.map((p) => new THREE.Vector3(p[0], p[1], 0));
+    const path = v.slice();
+    if (this._sketch.cursor) path.push(new THREE.Vector3(this._sketch.cursor[0], this._sketch.cursor[1], 0));
+    if (path.length >= 2) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(path), this._sketchLineMat); l.renderOrder = 998; g.add(l); }
+    if (v.length >= 3) { const cl = new THREE.Line(new THREE.BufferGeometry().setFromPoints([v[v.length - 1], v[0]]), this._sketchCloseMat); cl.renderOrder = 998; g.add(cl); }
+    if (v.length) {
+      const dots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(v), this._sketchDotMat); dots.renderOrder = 999; g.add(dots);
+      const first = new THREE.Points(new THREE.BufferGeometry().setFromPoints([v[0]]), this._sketchFirstMat); first.renderOrder = 999; g.add(first);
+    }
+    this.editGroup.add(g);
+    this._sketch.group = g;
+  }
+
   _setupControls() {
     let dragging = false, panning = false, shapeDrag = false, downOnCanvas = false, downAdditive = false;
     let lastX = 0, lastY = 0, downX = 0, downY = 0, moved = 0;
@@ -434,6 +534,10 @@ export class Viewport {
         downOnCanvas = true; downX = x; downY = y; moved = 0;
         this._measurePending = true; startOrbit(x, y, false); return;
       }
+      if (this._sketch.on && !pan) { // sketch: left-drag orbits, a clean click drops a point
+        downOnCanvas = true; downX = x; downY = y; moved = 0;
+        this._sketchPending = true; startOrbit(x, y, false); return;
+      }
       downOnCanvas = true; downAdditive = additive;
       downX = x; downY = y; moved = 0;
       const hit = pan ? null : this._pickShape(x, y);
@@ -453,6 +557,11 @@ export class Viewport {
         if (moved < 4) this._measurePick(downX, downY);
         return;
       }
+      if (this._sketchPending) { // sketch mode: a click (not a drag) drops/closes a point
+        this._sketchPending = false; dragging = false; panning = false;
+        if (moved < 4) this._sketchClick(downX, downY);
+        return;
+      }
       if (shapeDrag) {
         const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
         if (em && this.onShapeMoveEnd) this.onShapeMoveEnd(this.selectedIndex,
@@ -470,6 +579,7 @@ export class Viewport {
     const c = this.canvas;
     c.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY, e.button === 2, e.shiftKey || this.multiSelect));
     window.addEventListener('mousemove', (e) => { if (dragging || shapeDrag) { this._magnetSuppressed = e.altKey; onMove(e.clientX, e.clientY); } });
+    c.addEventListener('mousemove', (e) => { if (this._sketch.on) this._sketchHover(e.clientX, e.clientY); }); // sketch rubber-band
     window.addEventListener('mouseup', onUp);
     c.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY); }, { passive: false });
     c.addEventListener('contextmenu', (e) => {

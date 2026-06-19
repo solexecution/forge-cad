@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, nutTrap, keyhole, text, thread, bolt, nut, meshSolid, importSTL, importOBJ, import3MF, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, nutTrap, keyhole, text, thread, bolt, nut, extrude, meshSolid, importSTL, importOBJ, import3MF, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
@@ -103,6 +103,7 @@ function nodeToGeometry(node) {
       case 'keyhole':     m = keyhole(f('headD'), f('slotW'), f('length'), f('depth')); break;
       case 'text':       m = text(f('str'), f('size'), f('height')); break;
       case 'imported':   m = imported(node.meshId || ''); break;
+      case 'extrusion':  { const pts = node.points || []; if (pts.length < 3) return null; m = extrude(pts, f('height')); break; }
       case 'thread':     m = thread(f('length'), f('pitch'), f('d'), 0.61 * f('pitch')); break;
       case 'bolt':       m = bolt(f('d'), f('pitch'), f('length'), f('headAF'), f('headH')); break;
       case 'nut':        m = nut(f('d'), f('pitch'), f('thickness'), f('af')); break;
@@ -263,6 +264,7 @@ export class App {
     this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
     this.viewport.onTransform = (i, t) => this._onTransform(i, t);
     this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
+    this.viewport.onSketchComplete = (pts) => this._onSketchComplete(pts);
     window.__forgeExport = { exportSTL, export3MF, export3MFColored, exportOBJ, build3MF: () => this._build3MF() }; // scripting/test hook
     window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, importOBJ, import3MF, registerSolid, coloredParts: () => buildColoredParts(this.buildTree) }; // debug
     window.__recipes = RECIPES; // simple-mode makes (test hook)
@@ -973,6 +975,7 @@ export class App {
   // into editable parts (or keeps the parts if the code is their clean mirror).
   _switchMode(mode) {
     const $ = (s) => this.root.querySelector(s);
+    if (this.viewport && this.viewport._sketch?.on) { this.viewport.cancelSketch(); this.root.querySelector('#sketch-bar')?.classList.add('hidden'); }
     if (mode === this.mode) { this._setPanel(true); return; }
     if (mode === 'code') {
       this.source = buildTreeToSource(this.buildTree) || this.source;
@@ -1080,6 +1083,7 @@ export class App {
     const SHAPES = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'prism', 'gear', 'wedge', 'torus', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'text', 'bolt', 'nut', 'thread', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole'];
     SHAPES.forEach((k) => add(`Add ${k}`, 'shape', 'Add', () => A._addShape(k)));
     Object.keys(TEMPLATES).forEach((k) => add(`Insert ${k}`, 'ready-made', 'Add', () => A._loadTemplate(k)));
+    add('Draw a sketch (extrude)', 'polygon → 3D', 'Add', () => A._startSketch());
     add('Fit to view', 'F', 'View', () => A.viewport.fitView());
     add('Top view', '', 'View', () => A.viewport.setView('top'));
     add('Front view', '', 'View', () => A.viewport.setView('front'));
@@ -1163,6 +1167,43 @@ export class App {
     const cmd = this._cmdShown && this._cmdShown[idx];
     this._closeModal('#cmd-modal');
     if (cmd) { try { cmd.run(); } catch { this._toast('Could not run that command'); } }
+  }
+
+  // --- sketch → extrude -----------------------------------------------------
+  _startSketch() {
+    if (this.mode !== 'build') this._switchMode('build');
+    if (this.viewMode !== 'edit') this._setViewMode('edit');
+    this._closeAddModal();
+    this.viewport.setSketchMode(true);
+    this.root.querySelector('#sketch-bar')?.classList.remove('hidden');
+    this._toast('Draw a shape — tap points on the plate, tap the first dot (or Finish) to close');
+  }
+
+  _finishSketchUI() {
+    const ok = this.viewport.finishSketch();
+    this.root.querySelector('#sketch-bar')?.classList.add('hidden');
+    if (!ok) this._toast('A shape needs at least 3 points — cancelled');
+  }
+
+  _cancelSketchUI() {
+    this.viewport.cancelSketch();
+    this.root.querySelector('#sketch-bar')?.classList.add('hidden');
+  }
+
+  // The viewport finished a closed polygon: turn it into an editable extrusion.
+  _onSketchComplete(pts) {
+    const node = this.buildTree.add('extrusion');
+    if (!node) return;
+    node.points = pts;
+    const h = Math.max(0.4, +this.root.querySelector('#sketch-h')?.value || 10);
+    const hf = node.fields.find((f) => f.key === 'height'); if (hf) hf.value = h;
+    node.pos = [0, 0, h / 2]; // extrude is centred — seat the base on the plate
+    this.root.querySelector('#sketch-bar')?.classList.add('hidden');
+    this._renderBuildTree();
+    this._selectNode(this.buildTree.nodes.length - 1, false);
+    this.recompile();
+    this._pushHistory();
+    this._toast('Sketch extruded ✓ — set the height, or drag it like any part');
   }
 
   _loadTemplate(key) {
@@ -1761,6 +1802,12 @@ export class App {
       });
     }
 
+    // sketch → extrude
+    $('#add-sketch')?.addEventListener('click', () => this._startSketch());
+    $('#sketch-finish')?.addEventListener('click', () => this._finishSketchUI());
+    $('#sketch-cancel')?.addEventListener('click', () => this._cancelSketchUI());
+    $('#sketch-undo')?.addEventListener('click', () => this.viewport.sketchUndoPoint());
+
     // command palette (Ctrl+K, or the ⌕ button)
     $('#cmd-open')?.addEventListener('click', () => this._openCmd());
     const cmdModal = $('#cmd-modal');
@@ -2059,6 +2106,7 @@ export class App {
       if (e.key === 'Escape') {
         const ctx = this.root.querySelector('#ctx-menu');
         if (ctx && !ctx.classList.contains('hidden')) { e.preventDefault(); ctx.classList.add('hidden'); return; }
+        if (this.viewport && this.viewport._sketch?.on) { e.preventDefault(); this._cancelSketchUI(); return; }
         const tm = this.root.querySelector('#tier-modal');
         if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('maker'); tm.classList.add('hidden'); return; }
         for (const sel of ['#cmd-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
@@ -2364,6 +2412,8 @@ export class App {
           ${node.group != null ? `<span class="bn-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
           ${node.kind === 'imported'
             ? `<span class="bn-type bn-imported" title="Imported mesh">⬇ ${esc(node.meshName || 'mesh')}</span>`
+            : node.kind === 'extrusion'
+            ? `<span class="bn-type bn-imported" title="Extruded sketch — ${(node.points || []).length} points">✎ sketch (${(node.points || []).length} pts)</span>`
             : `<select class="bn-type" data-type="${idx}" title="Shape type">
             ${KINDS.map((k) => `<option value="${k}" ${k === node.kind ? 'selected' : ''}>${KIND_LABEL[k] || k}</option>`).join('')}
           </select>`}
@@ -2685,6 +2735,14 @@ export class App {
           <input type="range" id="layer-range" min="0" max="0" value="0" step="1" aria-label="Layer">
         </div>
 
+        <div id="sketch-bar" class="sketch-bar hidden">
+          <span class="sketch-hint">✎ tap points · tap the first dot to close</span>
+          <label class="sketch-h">height<input type="number" id="sketch-h" value="10" min="0.4" step="1"></label>
+          <button id="sketch-undo" title="Remove the last point">↶ point</button>
+          <button id="sketch-finish" class="sketch-go" title="Close the shape and extrude it">Finish ✓</button>
+          <button id="sketch-cancel" title="Discard">Cancel</button>
+        </div>
+
         <div id="ctx-menu" class="ctx-menu hidden" role="menu"></div>
 
         <div id="help-modal" class="modal-overlay center hidden">
@@ -2765,6 +2823,12 @@ export class App {
               <button class="modal-x" id="add-close" title="Close (Esc)">✕</button>
             </div>
             <div class="modal-body">
+              <section class="cat" data-cat="draw">
+                <h4>Draw</h4>
+                <div class="cat-grid">
+                  <button id="add-sketch" title="Draw a 2D outline on the plate and pull it into 3D">✎ sketch &amp; extrude</button>
+                </div>
+              </section>
               <section class="cat" data-cat="basic">
                 <h4>Basic shapes</h4>
                 <div class="cat-grid">
