@@ -112,6 +112,7 @@ export class Viewport {
     this._outline = null;
     this._measure = { on: false, a: null, b: null, group: null }; // measure tool
     this.measureLabel = null; // DOM overlay positioned at the segment midpoint
+    this._pins = []; // pinned dimension annotations (persist across recompiles)
     this.onMeasure = null;    // (info|null) — { dist, x, y, z } in mm
 
     this._setupControls();
@@ -272,6 +273,50 @@ export class Viewport {
     // world delta -> manifold/printer space: model = (wx, -wz, wy)
     const dx = m.b.x - m.a.x, dy = m.b.y - m.a.y, dz = m.b.z - m.a.z;
     return { dist: m.a.distanceTo(m.b), x: Math.abs(dx), y: Math.abs(dz), z: Math.abs(dy) };
+  }
+
+  // Pin the current measurement as a persistent 3D annotation (markers + line +
+  // a floating distance sprite) that survives recompiles. Returns true if pinned.
+  pinCurrentMeasure() {
+    const m = this._measure;
+    if (!m.a || !m.b) return false;
+    if (!this._measureMat) {
+      this._measureMat = new THREE.MeshBasicMaterial({ color: COLORS.measure });
+      this._measureLineMat = new THREE.LineBasicMaterial({ color: COLORS.measure });
+    }
+    const g = new THREE.Group();
+    const mk = (p) => { const s = new THREE.Mesh(new THREE.SphereGeometry(this.camera.position.distanceTo(p) * 0.012, 12, 8), this._measureMat); s.position.copy(p); return s; };
+    g.add(mk(m.a), mk(m.b));
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([m.a, m.b]), this._measureLineMat));
+    const mid = m.a.clone().add(m.b).multiplyScalar(0.5);
+    g.add(this._makeDistLabel(`${m.a.distanceTo(m.b).toFixed(1)} mm`, mid));
+    this.scene.add(g);
+    this._pins.push(g);
+    return true;
+  }
+
+  clearPins() {
+    for (const g of this._pins) {
+      this.scene.remove(g);
+      g.traverse((o) => { o.geometry?.dispose(); if (o.material) { o.material.map?.dispose(); o.material.dispose(); } });
+    }
+    this._pins = [];
+  }
+
+  // A camera-facing sprite showing distance text on an amber pill (canvas).
+  _makeDistLabel(text, pos) {
+    const cw = 256, ch = 72;
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#ffb74d'; ctx.fillRect(6, 16, cw - 12, ch - 32);
+    ctx.fillStyle = '#1a1d21'; ctx.font = 'bold 34px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, cw / 2, ch / 2);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, depthWrite: false }));
+    const w = this.camera.position.distanceTo(pos) * 0.07;
+    spr.scale.set(w, w * ch / cw, 1);
+    spr.position.copy(pos);
+    spr.renderOrder = 999;
+    return spr;
   }
 
   // Keep the floating distance label glued to the segment midpoint each frame.

@@ -95,7 +95,7 @@ body {
 .quality-sel:focus { outline: none; border-color: var(--cyan); }
 
 .measure-label {
-  position: absolute; transform: translate(-50%, -135%); pointer-events: none;
+  position: absolute; transform: translate(-50%, -135%); pointer-events: auto; cursor: pointer;
   background: var(--amber); color: var(--bg); font-family: var(--mono);
   font-size: 12px; font-weight: 700; line-height: 1.25; text-align: center;
   padding: 3px 8px; border-radius: 7px; white-space: nowrap; z-index: 20; display: none;

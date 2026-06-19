@@ -1758,18 +1758,25 @@ export class App {
     });
 
     // measure tool: toggle + floating distance label fed by the viewport
-    this.viewport.measureLabel = this.root.querySelector('#measure-label');
+    const measLabel = this.root.querySelector('#measure-label');
+    this.viewport.measureLabel = measLabel;
     this.viewport.onMeasure = (info) => {
-      const el = this.viewport.measureLabel;
-      if (info && el) el.innerHTML =
-        `<b>${info.dist.toFixed(1)} mm</b><span>X ${info.x.toFixed(1)} · Y ${info.y.toFixed(1)} · Z ${info.z.toFixed(1)}</span>`;
+      if (info && measLabel) measLabel.innerHTML =
+        `<b>${info.dist.toFixed(1)} mm</b><span>X ${info.x.toFixed(1)} · Y ${info.y.toFixed(1)} · Z ${info.z.toFixed(1)} · tap to pin</span>`;
     };
-    const measBtn = this.root.querySelector('#v-measure');
-    if (measBtn) measBtn.addEventListener('click', () => {
-      this.measureMode = !this.measureMode;
-      this.viewport.setMeasureMode(this.measureMode);
-      measBtn.classList.toggle('on', this.measureMode);
+    // tap the floating label to pin the measurement as a persistent annotation
+    if (measLabel) measLabel.addEventListener('click', () => {
+      if (this.viewport.pinCurrentMeasure()) this._toast('Dimension pinned — double-click 📏 to clear');
     });
+    const measBtn = this.root.querySelector('#v-measure');
+    if (measBtn) {
+      measBtn.addEventListener('click', () => {
+        this.measureMode = !this.measureMode;
+        this.viewport.setMeasureMode(this.measureMode);
+        measBtn.classList.toggle('on', this.measureMode);
+      });
+      measBtn.addEventListener('dblclick', () => { this.viewport.clearPins(); this._toast('Pinned dimensions cleared'); });
+    }
 
     // overhang analysis: tint downward faces that need support (uses the merged
     // result mesh, so switch a build-mode edit view over to result first)
