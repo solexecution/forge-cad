@@ -269,6 +269,15 @@ export function insertHole(insertD = 4, depth = 6) {
   const out = body.add(lead); body.delete(); lead.delete(); return out;
 }
 
+// Captive nut trap: a hex pocket (sized + clearance for a nut to drop in) with a
+// coaxial bolt-clearance shaft running up through it. Base on the plate.
+export function nutTrap(acrossFlats = 5.5, nutThick = 2.6, boltD = 3.4, shaftDepth = 14) {
+  const M = kernel().Manifold, seg = CURVE_SEGMENTS;
+  const hex = hexPrism(acrossFlats + 0.3, Math.max(0.5, nutThick));
+  const shaft = M.cylinder(Math.max(nutThick + 0.5, shaftDepth), boltD / 2, boltD / 2, seg, false);
+  const out = hex.add(shaft); hex.delete(); shaft.delete(); return out;
+}
+
 // Stadium / slot prism: a rounded-end bar (hull of two cylinders). `length` is
 // the overall length, `radius` the end radius (half-width). Centred.
 export function slot(length, radius, height, segments = 48) {

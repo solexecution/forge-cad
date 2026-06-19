@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, text, thread, bolt, nut, meshSolid, importSTL, importOBJ, import3MF, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, nutTrap, text, thread, bolt, nut, meshSolid, importSTL, importOBJ, import3MF, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
@@ -25,7 +25,7 @@ const HL_KEYWORDS = new Set(['param', 'true', 'false', 'PI']);
 const HL_FUNCS = new Set([
   'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge',
   'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox',
-  'chamferedCylinder', 'tube', 'prism', 'gear', 'counterbore', 'countersink', 'insertHole', 'text', 'thread', 'bolt', 'nut', 'imported',
+  'chamferedCylinder', 'tube', 'prism', 'gear', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'text', 'thread', 'bolt', 'nut', 'imported',
   'extrude', 'revolve', 'translate', 'rotate', 'scale', 'mirror', 'fillet', 'chamfer', 'bisect',
   'union', 'difference', 'intersection', 'hull',
   'sin', 'cos', 'tan', 'sqrt', 'abs', 'floor', 'ceil', 'round', 'min', 'max', 'pow',
@@ -99,6 +99,7 @@ function nodeToGeometry(node) {
       case 'counterbore': m = counterbore(f('shaftD'), f('depth'), f('headD'), f('headDepth')); break;
       case 'countersink': m = countersink(f('shaftD'), f('depth'), f('headD')); break;
       case 'insertHole':  m = insertHole(f('insertD'), f('depth')); break;
+      case 'nutTrap':     m = nutTrap(f('af'), f('nutThick'), f('boltD'), f('shaftDepth')); break;
       case 'text':       m = text(f('str'), f('size'), f('height')); break;
       case 'imported':   m = imported(node.meshId || ''); break;
       case 'thread':     m = thread(f('length'), f('pitch'), f('d'), 0.61 * f('pitch')); break;
@@ -2012,7 +2013,7 @@ export class App {
   _addShape(kind) {
     const node = this.buildTree.add(kind);
     // screw / insert pockets are made to be subtracted — spawn them as holes
-    if (node && (kind === 'counterbore' || kind === 'countersink' || kind === 'insertHole')) node.op = 'hole';
+    if (node && (kind === 'counterbore' || kind === 'countersink' || kind === 'insertHole' || kind === 'nutTrap')) node.op = 'hole';
     const idx = this.buildTree.nodes.length - 1;
     // If a workplane is active, spawn the part oriented to and resting on it.
     // node.pos[2] currently holds the kind's sit-on-plate offset (base height),
@@ -2138,7 +2139,7 @@ export class App {
       host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
       return;
     }
-    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'prism', 'gear', 'counterbore', 'countersink', 'insertHole', 'text', 'thread', 'bolt', 'nut'];
+    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'prism', 'gear', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'text', 'thread', 'bolt', 'nut'];
     const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
     const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth', 'points']);
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
@@ -2566,6 +2567,7 @@ export class App {
                   <button data-add="counterbore" title="Counterbore hole (cap screw sits below)">⌽ c'bore</button>
                   <button data-add="countersink" title="Countersink hole (flat-head sits flush)">⌵ c'sink</button>
                   <button data-add="insertHole" title="Heat-set insert pocket">◎ insert</button>
+                  <button data-add="nutTrap" title="Captive nut trap (hex pocket + bolt shaft)">⬡ nut trap</button>
                 </div>
               </section>
               <section class="cat">

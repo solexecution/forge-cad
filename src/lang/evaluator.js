@@ -184,6 +184,8 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.countersink(arg(0, 'shaftD', 3.4), arg(1, 'depth', 12), arg(2, 'headD', 6.5))));
       case 'insertHole':
         return mark(track(K.insertHole(arg(0, 'insertD', 4), arg(1, 'depth', 6))));
+      case 'nutTrap':
+        return mark(track(K.nutTrap(arg(0, 'af', 5.5), arg(1, 'nutThick', 2.6), arg(2, 'boltD', 3.4), arg(3, 'shaftDepth', 14))));
       case 'roundedCylinder':
         return mark(track(K.roundedCylinder(arg(0, 'h'), arg(1, 'r'), arg(2, 'fillet', 2))));
       case 'chamferedBox':
