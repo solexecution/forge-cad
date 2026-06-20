@@ -2669,7 +2669,7 @@ export class App {
 
         <header class="topbar">
           <button class="icon-btn on" id="panel-toggle" title="Toggle panel">☰</button>
-          <div class="brand"><span class="brand-mark">◆</span><span class="brand-name"> Rand<em>R</em></span></div>
+          <div class="brand"><span class="brand-mark">◆</span><span class="brand-name"> R<em>&amp;</em>R</span></div>
           <div class="tabs">
             <button data-mode="code" class="active">code</button>
             <button data-mode="build">build</button>
@@ -2922,7 +2922,7 @@ export class App {
         <div id="tier-modal" class="modal-overlay center hidden">
           <div class="modal-panel tier-panel" role="dialog" aria-label="Choose your level">
             <div class="modal-head">
-              <span class="modal-title">Welcome to RandR — pick how you want to work</span>
+              <span class="modal-title">Welcome to R&amp;R — pick how you want to work</span>
             </div>
             <div class="modal-body">
               <p class="tier-sub">Not sure? Start with <b>Simple</b>. You can switch anytime from the bar up top.</p>

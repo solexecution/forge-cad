@@ -1,7 +1,7 @@
 {
-  "name": "RandR",
-  "short_name": "RandR",
-  "description": "RandR — offline parametric 3D modelling for 3D printing",
+  "name": "R&R",
+  "short_name": "R&R",
+  "description": "R&R — offline parametric 3D modelling for 3D printing",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -1,4 +1,4 @@
-# RandR
+# R&R
 
 Offline, parametric 3D modelling for 3D printing. A workshop instrument that
 runs in the browser, installs as a PWA, and works with no network once cached —

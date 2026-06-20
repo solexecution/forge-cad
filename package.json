@@ -1,7 +1,7 @@
 {
   "name": "randr",
   "version": "1.0.0",
-  "description": "RandR — offline parametric 3D modelling for 3D printing",
+  "description": "R&R — offline parametric 3D modelling for 3D printing",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
