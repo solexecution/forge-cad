@@ -2284,6 +2284,13 @@ export class App {
     if (closeBtn) closeBtn.addEventListener('click', () => this._closeAddModal());
     if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) this._closeAddModal(); });
 
+    // search filter + collapsible category headers
+    const search = this.root.querySelector('#add-search');
+    if (search) search.addEventListener('input', () => this._filterAdd(search.value));
+    this.root.querySelectorAll('#add-modal .cat > h4').forEach((h) => h.addEventListener('click', () => {
+      if (!modal.classList.contains('searching')) h.parentElement.classList.toggle('collapsed');
+    }));
+
     // STL import (from the modal's Import category)
     const fileInput = this.root.querySelector('#stl-file');
     const importBtn = this.root.querySelector('#modal-import');
@@ -2308,6 +2315,29 @@ export class App {
     const m = this.root.querySelector('#add-modal');
     if (!m) return;
     m.classList.remove('hidden');
+    const s = this.root.querySelector('#add-search'); if (s) { s.value = ''; this._filterAdd(''); } // fresh each open
+    this._positionAddModal();
+  }
+
+  // Filter the Add-modal items by a search query; hide non-matching buttons and
+  // any category left with no matches (and show the grids even if collapsed).
+  _filterAdd(query) {
+    const q = (query || '').trim().toLowerCase();
+    const modal = this.root.querySelector('#add-modal');
+    if (!modal) return;
+    modal.classList.toggle('searching', !!q);
+    let matched = 0;
+    modal.querySelectorAll('.cat').forEach((cat) => {
+      let any = false;
+      cat.querySelectorAll('button').forEach((b) => {
+        const hit = !q || b.textContent.toLowerCase().includes(q);
+        b.classList.toggle('add-hide', !hit);
+        if (hit) { any = true; matched += 1; }
+      });
+      cat.classList.toggle('cat-nomatch', !!q && !any);
+    });
+    const empty = modal.querySelector('#add-empty');
+    if (empty) empty.classList.toggle('hidden', !(q && matched === 0));
     this._positionAddModal();
   }
 
@@ -2958,6 +2988,8 @@ export class App {
               <button class="modal-x" id="add-close" title="Close (Esc)">✕</button>
             </div>
             <div class="modal-body">
+              <input id="add-search" class="add-search" type="text" placeholder="🔍 Search shapes, parts, fasteners…" spellcheck="false" autocomplete="off">
+              <div id="add-empty" class="add-empty-msg hidden">No matches</div>
               <section class="cat" data-cat="draw">
                 <h4>Draw</h4>
                 <div class="cat-grid">

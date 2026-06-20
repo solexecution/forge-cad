@@ -375,12 +375,35 @@ input[type=range]::-moz-range-thumb {
 .cat h4 { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 5px; font-weight: 600; }
 .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
 .cat-grid button {
-  font-family: var(--mono); font-size: 11px; color: var(--ink); text-align: left;
+  display: flex; align-items: center; gap: 5px; min-height: 30px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink); text-align: left; line-height: 1.25;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px;
-  padding: 7px 8px; cursor: pointer; transition: all .12s;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 7px 8px; cursor: pointer; transition: border-color .12s, color .12s;
+  white-space: normal; /* wrap instead of clipping long labels */
 }
 .cat-grid button:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* Add-modal: sticky search, collapsible headers, filtering */
+.add-search {
+  position: sticky; top: 0; z-index: 3; width: 100%; box-sizing: border-box;
+  margin: 0 0 4px; font-family: var(--mono); font-size: 12.5px; color: var(--ink);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+}
+.add-search:focus { outline: none; border-color: var(--cyan); }
+.add-search::placeholder { color: var(--ink-dim); }
+.add-empty-msg { padding: 18px 4px; text-align: center; color: var(--ink-dim); font-family: var(--mono); font-size: 12px; }
+.add-empty-msg.hidden { display: none; }
+
+.cat > h4 { cursor: pointer; display: flex; align-items: center; justify-content: space-between; user-select: none; }
+.cat > h4::after { content: '▾'; font-size: 8px; color: var(--ink-dim); transition: transform .12s; }
+.cat.collapsed > h4::after { transform: rotate(-90deg); }
+.cat.collapsed .cat-grid { display: none; }
+
+.cat-grid button.add-hide { display: none; }
+.cat.cat-nomatch { display: none; }
+#add-modal.searching .cat .cat-grid { display: grid !important; } /* show matches even if collapsed */
+#add-modal.searching .cat > h4 { cursor: default; }
+#add-modal.searching .cat > h4::after { display: none; }
 
 /* centered modal variant (Projects manager, name input) vs the anchored Add popover */
 .modal-overlay.center { display: flex; align-items: center; justify-content: center; padding: 20px; }
