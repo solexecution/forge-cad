@@ -166,10 +166,40 @@ body {
 .part-card.min .card-body { display: none; }
 .card-tools { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 
-/* keep the HUD / nav-cube clear of a side-docked card (wide screens only) */
+/* compact parts roster (one row per part) */
+.pl-row { display: flex; align-items: center; gap: 3px; padding: 4px 5px; border: 1px solid transparent; border-radius: 8px; }
+.pl-row + .pl-row { margin-top: 3px; }
+.pl-row.sel { background: var(--surface-2); border-color: var(--cyan); }
+.pl-row.is-hidden { opacity: .5; }
+.pl-sel { width: 26px; height: 26px; flex: none; display: grid; place-items: center; font-size: 13px; background: none; border: 0; color: var(--ink-dim); cursor: pointer; border-radius: 6px; }
+.pl-sel.on { color: var(--cyan); }
+.pl-name { flex: 1; min-width: 0; text-align: left; font-family: var(--mono); font-size: 12.5px; color: var(--ink); background: none; border: 0; cursor: pointer; padding: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-name:hover { color: var(--cyan); }
+.pl-row.is-hole .pl-name { color: var(--ink-dim); font-style: italic; }
+.pl-grp { font-family: var(--mono); font-size: 9px; color: var(--ink-dim); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; flex: none; }
+.pl-op { flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-dim); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+.pl-op.hole { color: var(--amber); border-color: var(--amber); }
+.pl-del { flex: none; width: 24px; height: 24px; display: grid; place-items: center; font-size: 12px; color: var(--ink-dim); background: none; border: 0; cursor: pointer; border-radius: 6px; }
+.pl-del:hover { color: var(--red); }
+.pl-color { width: 18px; height: 18px; flex: none; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none; cursor: pointer; }
+.pl-color::-webkit-color-swatch-wrapper { padding: 0; }
+.pl-color::-webkit-color-swatch { border: none; border-radius: 4px; }
+.pl-color:disabled { opacity: .3; cursor: default; }
+.pl-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; font-size: 12px; background: none; border: 0; color: var(--ink-dim); cursor: pointer; border-radius: 6px; }
+.pl-ic:hover { color: var(--cyan); }
+.pl-ic.on { color: var(--cyan); }
+.pl-op { padding: 4px 6px; }
+
+/* standalone part editor modal */
+.part-modal-panel { width: 360px; max-width: calc(100vw - 24px); }
+.part-modal-panel .modal-body { max-height: 70vh; overflow-y: auto; }
+.pm-metrics { font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--ink-dim); letter-spacing: .04em; margin-left: 8px; text-transform: none; }
+#part-modal-fields { display: flex; flex-direction: column; gap: 8px; }
+#part-modal-tools { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+
+/* shift the right-hand readout + cube clear of a right-docked card (wide only) */
 @media (min-width: 821px) {
-  .stage.cardleft .hud { left: 340px !important; }
-  .stage.cardright #nav-widget { right: 340px; }
+  .stage.cardright .hud, .stage.cardright #nav-widget { right: 340px; }
 }
 /* portrait tablet / phone: a side dock becomes a bottom sheet so the canvas
    keeps most of the width */
@@ -620,7 +650,7 @@ input[type=range]::-moz-range-thumb {
    The wrapper ignores pointer events so empty areas still orbit the scene;
    only the cube / axis / buttons capture taps. */
 #nav-widget {
-  position: absolute; top: 48px; right: 12px; z-index: 16;
+  position: absolute; top: 54px; right: 12px; z-index: 16;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   pointer-events: none; touch-action: manipulation;
 }
@@ -642,18 +672,20 @@ input[type=range]::-moz-range-thumb {
 #nav-axis { width: 48px; height: 48px; cursor: pointer; pointer-events: auto; }
 
 .hud {
-  position: absolute; top: 54px; left: calc(var(--panel-w, 320px) + 12px); right: auto; z-index: 8;
+  position: absolute; top: 8px; right: 12px; left: auto; z-index: 25;
   background: rgba(22,25,29,.82); backdrop-filter: blur(8px);
   border: 1px solid var(--line); border-radius: 10px;
   padding: 8px 12px 10px; min-width: 178px;
 }
-#panel.collapsed ~ .hud { left: 12px; } /* panel hidden → flush to the left edge */
 .hud-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .hud-title { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); }
 .hud-x { background: none; border: 0; color: var(--ink-dim); cursor: pointer; font-size: 13px; line-height: 1; padding: 2px 4px; }
 .hud-x:hover { color: var(--cyan); }
 .hud.collapsed .hud-body { display: none; }
 .hud.collapsed .hud-x { transform: rotate(-90deg); }
+.hud.collapsed { min-width: 0; } /* collapsed = just the headline, not the full data width */
+.hud-headline { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.hud-headline #status-label { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--ink-dim); white-space: nowrap; }
 .hud-body { margin-top: 6px; }
 .hud-row { display: flex; justify-content: space-between; gap: 18px; padding: 3px 0; }
 .hud-key {
@@ -667,15 +699,7 @@ input[type=range]::-moz-range-thumb {
 .hud-row.hidden { display: none; }
 #hud-sel { color: var(--cyan) !important; }
 
-.status {
-  position: absolute; bottom: 16px; right: 16px;
-  display: flex; align-items: center; gap: 8px;
-  font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
-  color: var(--ink-dim);
-  background: rgba(22,25,29,.82); backdrop-filter: blur(8px);
-  border: 1px solid var(--line); border-radius: 20px; padding: 6px 13px;
-}
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-dim); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-dim); flex: none; }
 .status-dot.state-ok { background: var(--green); }
 .status-dot.state-working { background: var(--amber); animation: pulse 1s ease infinite; }
 .status-dot.state-error { background: var(--red); }

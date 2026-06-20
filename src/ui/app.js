@@ -493,9 +493,7 @@ export class App {
   }
 
   _highlightBuildRows() {
-    const sel = new Set(this.selectedNodes);
-    this.root.querySelectorAll('.build-node').forEach((r) =>
-      r.classList.toggle('sel', sel.has(Number(r.dataset.node))));
+    this._renderBuildTree(); // re-render the roster + the modal detail for the new selection
   }
 
   // The build tools live in a floating dock (bottom-right). Show its button only
@@ -2143,6 +2141,16 @@ export class App {
       });
     }
 
+    // the detail editor + action tools live in a standalone modal; relocate the
+    // tool bars into it (keeps their ids → existing bindings/_renderAlignBar work)
+    const toolsBlock = this.root.querySelector('.card-tools');
+    const toolsHost = this.root.querySelector('#part-modal-tools');
+    if (toolsBlock && toolsHost) toolsHost.appendChild(toolsBlock);
+    this.root.querySelector('#card-edit')?.addEventListener('click', () => this._openPartModal());
+    this.root.querySelector('#part-modal-close')?.addEventListener('click', () => this._closeModal('#part-modal'));
+    const partModal = this.root.querySelector('#part-modal');
+    if (partModal) partModal.addEventListener('mousedown', (e) => { if (e.target === partModal) this._closeModal('#part-modal'); });
+
     // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to the
     // selection. Long-pressing a part in the scene arms the same mode (see
     // viewport.js → onMultiArm); both share this._setMultiSelect.
@@ -2312,7 +2320,7 @@ export class App {
         if (this.viewport && this.viewport._sketch?.on) { e.preventDefault(); this._cancelSketchUI(); return; }
         const tm = this.root.querySelector('#tier-modal');
         if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('maker'); tm.classList.add('hidden'); return; }
-        for (const sel of ['#cmd-modal', '#view-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
+        for (const sel of ['#part-modal', '#cmd-modal', '#view-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
         }
@@ -2640,25 +2648,34 @@ export class App {
   }
 
   _renderBuildTree() {
-    const host = this.root.querySelector('#build-list');
-    if (!host) return; // card not in the DOM yet (e.g. an early call during boot)
+    this._renderPartsList(); // compact roster: select · name · hole · remove
     this._updatePartsHeader();
+    const host = this.root.querySelector('#part-modal-fields'); // the detail editor lives in the modal
+    if (!host) return; // modal not in the DOM yet (e.g. an early call during boot)
     host.innerHTML = '';
-    if (this.buildTree.nodes.length === 0) {
-      host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
+    if (this.selectedNodes.length >= 2) {
+      host.innerHTML = `<p class="muted">${this.selectedNodes.length} parts selected — use the tools below to align, group, array or place them.</p>`;
+      this._renderAlignBar();
       return;
     }
+    if (this.selectedNode < 0 || !this.buildTree.nodes[this.selectedNode]) {
+      host.innerHTML = '<p class="muted">Pick a part from the list to edit its size, position, colour and options.</p>';
+      this._renderAlignBar();
+      return;
+    }
+    const mEl = this.root.querySelector('#part-modal-metrics');
+    const mb = this.viewport.shapeBounds ? this.viewport.shapeBounds(this.selectedNode) : null;
+    if (mEl) mEl.textContent = mb ? `${(mb.max[0] - mb.min[0]).toFixed(1)} × ${(mb.max[1] - mb.min[1]).toFixed(1)} × ${(mb.max[2] - mb.min[2]).toFixed(1)} mm` : '—';
     const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'prism', 'gear', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole', 'text', 'thread', 'bolt', 'nut'];
     const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
     const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth', 'points']);
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
-    this.buildTree.nodes.forEach((node, idx) => {
+    [this.selectedNode].forEach((idx) => {
+      const node = this.buildTree.nodes[idx];
       const row = document.createElement('div');
-      row.className = 'build-node'
+      row.className = 'build-node sel'
         + (node.op === 'hole' ? ' is-hole' : '')
-        + (idx === this.selectedNode ? ' sel' : '')
-        + (node.hidden ? ' is-hidden' : '')
-        + (node.collapsed ? ' collapsed' : '');
+        + (node.hidden ? ' is-hidden' : '');
       row.dataset.node = idx;
       const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
       const dims = node.fields.map((f) => {
@@ -2795,7 +2812,71 @@ export class App {
       applyMetricSize(nodes[+el.dataset.size], el.value);
       this._renderBuildTree(); this.recompile(); this._pushHistory();
     }));
-    this._updateCollapseAllLabel();
+    this._renderAlignBar();
+  }
+
+  // The compact parts roster: one row per part with just the essentials —
+  // (multi)select · name (tap to edit) · solid/hole · remove. Deep editing
+  // happens in the part modal (#part-modal).
+  _renderPartsList() {
+    const host = this.root.querySelector('#build-list');
+    if (!host) return;
+    const nodes = this.buildTree.nodes;
+    host.innerHTML = '';
+    if (!nodes.length) {
+      host.innerHTML = '<p class="muted">Tap + to add your first part, then mark each one solid or hole.</p>';
+      return;
+    }
+    const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const nameOf = (n) => n.kind === 'imported' ? (n.meshName || 'mesh')
+      : n.kind === 'extrusion' ? 'sketch' : n.kind === 'revolution' ? 'lathe'
+      : (KIND_LABEL[n.kind] || n.kind);
+    const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
+    const sel = new Set(this.selectedNodes);
+    nodes.forEach((node, idx) => {
+      const on = sel.has(idx);
+      const row = document.createElement('div');
+      row.className = 'pl-row' + (on ? ' sel' : '') + (node.op === 'hole' ? ' is-hole' : '') + (node.hidden ? ' is-hidden' : '');
+      row.dataset.node = idx;
+      row.innerHTML = `
+        <button class="pl-sel${on ? ' on' : ''}" data-sel="${idx}" title="Add to / remove from selection" aria-pressed="${on}">${on ? '◉' : '◯'}</button>
+        <input type="color" class="pl-color" data-rcolor="${idx}" value="${hex(node.color)}" title="Colour" ${node.op === 'hole' ? 'disabled' : ''}>
+        <button class="pl-name" data-edit="${idx}" title="Edit this part">${esc(nameOf(node))}</button>
+        <button class="pl-op ${node.op}" data-op="${idx}" title="Toggle solid / hole">${node.op}</button>
+        <button class="pl-ic${node.locked ? ' on' : ''}" data-rlock="${idx}" title="Lock position">${node.locked ? '🔒' : '🔓'}</button>
+        <button class="pl-ic" data-rhide="${idx}" title="${node.hidden ? 'Show' : 'Hide'}">${node.hidden ? '🚫' : '👁'}</button>
+        <button class="pl-ic" data-rdup="${idx}" title="Duplicate">⧉</button>
+        <button class="pl-del" data-del="${idx}" title="Remove">✕</button>`;
+      host.appendChild(row);
+    });
+    host.querySelectorAll('[data-sel]').forEach((el) => el.addEventListener('click', () => this._selectNode(+el.dataset.sel, true)));
+    host.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => {
+      const i = +el.dataset.edit;
+      if (this.selectedNodes.length <= 1 || !this.selectedNodes.includes(i)) this._selectNode(i, false);
+      this._openPartModal();
+    }));
+    host.querySelectorAll('[data-op]').forEach((el) => el.addEventListener('click', () => {
+      const n = this.buildTree.nodes[+el.dataset.op]; n.op = n.op === 'hole' ? 'solid' : 'hole';
+      this._renderBuildTree(); this.recompile(); this._pushHistory();
+    }));
+    host.querySelectorAll('[data-del]').forEach((el) => el.addEventListener('click', () => this._deleteNode(+el.dataset.del)));
+    host.querySelectorAll('[data-rcolor]').forEach((el) => el.addEventListener('input', () => {
+      this.buildTree.nodes[+el.dataset.rcolor].color = parseInt(el.value.slice(1), 16); this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-rlock]').forEach((el) => el.addEventListener('click', () => {
+      const n = this.buildTree.nodes[+el.dataset.rlock]; n.locked = !n.locked; this._renderBuildTree(); this.recompile(); this._pushHistory();
+    }));
+    host.querySelectorAll('[data-rhide]').forEach((el) => el.addEventListener('click', () => {
+      const n = this.buildTree.nodes[+el.dataset.rhide]; n.hidden = !n.hidden; this._renderBuildTree(); this.recompile(); this._pushHistory();
+    }));
+    host.querySelectorAll('[data-rdup]').forEach((el) => el.addEventListener('click', () => this._duplicateNode(+el.dataset.rdup)));
+  }
+
+  // Open the standalone part editor for the current selection.
+  _openPartModal() {
+    this._renderBuildTree();   // fills #part-modal-fields for the selected part
+    this._openModal('#part-modal');
   }
 
   // The "collapse/expand all" control reflects and flips every part card's
@@ -2826,6 +2907,8 @@ export class App {
         <canvas id="viewport-canvas"></canvas>
 
         <header class="topbar">
+          <div class="brand"><span class="brand-mark">◆</span><span class="brand-name"> R<em>&amp;</em>R</span></div>
+          <span class="bar-proj" id="proj-name" title="Current project">Untitled</span>
           <div class="menu" id="app-menu">
             <button class="icon-btn" id="app-btn" title="Menu — project, templates, export" aria-label="Menu">☰</button>
             <div class="menu-pop">
@@ -2854,8 +2937,6 @@ export class App {
               <button id="btn-obj">OBJ — mesh</button>
             </div>
           </div>
-          <div class="brand"><span class="brand-mark">◆</span><span class="brand-name"> R<em>&amp;</em>R</span></div>
-          <span class="bar-proj" id="proj-name" title="Current project">Untitled</span>
           <div class="menu" id="gear-menu">
             <button class="icon-btn" id="gear-btn" title="Settings — mode, level, view" aria-label="Settings">⚙</button>
             <div class="menu-pop">
@@ -2876,13 +2957,13 @@ export class App {
             </div>
           </div>
           <button class="icon-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
-          <div class="spacer"></div>
           <div class="viewtools">
             <button class="icon-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
             <button class="icon-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
             <button class="icon-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
             <button class="icon-btn" id="v-fit" title="Fit to view (F)">⤢</button>
           </div>
+          <div class="spacer"></div>
         </header>
 
         <aside class="panel" id="panel">
@@ -2908,6 +2989,7 @@ export class App {
             <span class="card-grip" title="Drag to move · snaps to either edge">⠿</span>
             <span class="card-title" id="parts-count">Parts</span>
             <span class="card-head-acts">
+              <button id="card-edit" class="card-ic" title="Edit selected part(s)">✎</button>
               <button id="card-snap" class="card-ic" title="Dock left / right / float">▣</button>
               <button id="card-min" class="card-ic" title="Collapse">▾</button>
             </span>
@@ -2915,10 +2997,6 @@ export class App {
           <div class="card-body" id="card-body">
             <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
             <p class="hint" id="parts-hint">Tap a part to edit · long-press to multi-select · drag the header to move this card</p>
-            <div class="parts-head">
-              <span class="pane-title">parts</span>
-              <button id="collapse-all" class="mini-btn" title="Collapse or expand all parts">collapse all</button>
-            </div>
             <div id="build-list" class="build-list"></div>
             <div class="card-tools">
             <div class="xform" id="xform">
@@ -2982,6 +3060,19 @@ export class App {
               <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
               <button data-gmode="hull" title="Hull — smooth blend / loft across the parts">⬭</button>
             </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="part-modal" class="modal-overlay center hidden">
+          <div class="modal-panel part-modal-panel" role="dialog" aria-label="Part editor">
+            <div class="modal-head">
+              <span class="modal-title">Edit part <span id="part-modal-metrics" class="pm-metrics">—</span></span>
+              <button class="modal-x" id="part-modal-close" title="Close (Esc)">✕</button>
+            </div>
+            <div class="modal-body">
+              <div id="part-modal-fields"></div>
+              <div id="part-modal-tools"></div>
             </div>
           </div>
         </div>
@@ -3204,9 +3295,13 @@ export class App {
           </div>
         </div>
 
-        <div class="hud" id="hud">
+        <div class="hud collapsed" id="hud">
           <div class="hud-head">
-            <span class="hud-title">readout</span>
+            <span class="hud-headline">
+              <span id="status-dot" class="status-dot state-empty"></span>
+              <span id="status-label">empty</span>
+              <span class="hud-title">readout</span>
+            </span>
             <button class="hud-x" id="hud-toggle" title="Collapse">⌄</button>
           </div>
           <div class="hud-body">
@@ -3221,11 +3316,6 @@ export class App {
         </div>
 
         <div class="measure-label" id="measure-label"></div>
-
-        <div class="status">
-          <span id="status-dot" class="status-dot state-empty"></span>
-          <span id="status-label">empty</span>
-        </div>
       </div>`;
   }
 }
