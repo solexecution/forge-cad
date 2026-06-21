@@ -293,7 +293,7 @@ export class App {
     this._render();
     await loadKernel();
     this.viewport = new Viewport(this.root.querySelector('#viewport-canvas'));
-    this.viewport.onSelect = (i, additive) => this._selectNode(i, additive);
+    this.viewport.onSelect = (i, additive) => { this._selectNode(i, additive); if (i >= 0 && !additive) this._setPanelTab('edit'); else if (i < 0 && this._panelTab === 'edit') this._setPanelTab('parts'); };
     this.viewport.onMultiArm = (on) => this._onMultiArm(on);
     this.viewport.onContext = (i, x, y) => this._showContextMenu(i, x, y);
     this.viewport.onShapeMove = (i, pos) => this._onShapeMove(i, pos);
@@ -501,9 +501,11 @@ export class App {
   // over the code view.
   _syncBuildTools() {
     const build = this.mode === 'build';
+    const tab = this._panelTab || 'parts';
+    const show = build || tab === 'settings'; // Settings is the only tab that works in code mode
     const card = this.root.querySelector('#part-card');
-    if (card) card.classList.toggle('hidden', !build);
-    this._setPanel(!build); // build edits live in the card; the left panel is code-only
+    if (card) card.classList.toggle('hidden', !show);
+    this._setPanel(!build); // the code editor (left panel) shows only in code mode
     this._applyCardLayout();
   }
 
@@ -2018,7 +2020,7 @@ export class App {
     const appMenu = $('#app-menu');
     const gearMenu = $('#gear-menu');
     $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
-    $('#gear-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(gearMenu); });
+    $('#gear-btn').addEventListener('click', () => this._setPanelTab('settings'));
     document.addEventListener('click', () => this.root.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
     // Templates / Export fly-out submenus inside the app menu (tap to open on touch)
     this.root.querySelectorAll('.menu-fly-btn').forEach((b) => b.addEventListener('click', (e) => {
@@ -2029,7 +2031,26 @@ export class App {
       if (!wasOpen) fly.classList.add('open');
     }));
     // click the project name (next to the logo) to rename the project
-    $('#proj-name')?.addEventListener('click', () => this._promptName('Rename project', this.project ? this.project.name : '', (n) => this._renameCurrentProject(n)));
+    // rename the project inline — click the name, edit in place, Enter/blur saves
+    const projName = $('#proj-name');
+    if (projName) {
+      projName.addEventListener('click', () => {
+        if (projName.getAttribute('contenteditable') === 'true') return;
+        projName.setAttribute('contenteditable', 'true'); projName.spellcheck = false; projName.focus();
+        const r = document.createRange(); r.selectNodeContents(projName);
+        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      });
+      projName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); projName.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); projName.textContent = this.project ? this.project.name : 'Untitled'; projName.blur(); }
+      });
+      projName.addEventListener('blur', () => {
+        projName.setAttribute('contenteditable', 'false');
+        const name = (projName.textContent || '').trim();
+        if (name && this.project && name !== this.project.name) this._renameCurrentProject(name);
+        else projName.textContent = this.project ? this.project.name : 'Untitled';
+      });
+    }
 
     // project actions (in the app menu)
     $('#proj-new').addEventListener('click', () => this._newProject());
@@ -2162,19 +2183,23 @@ export class App {
       this.root.querySelector('#card-min')?.addEventListener('click', () => setCardCollapsed(true));
       // expand / collapse from the top bar
       this.root.querySelector('#parts-toggle')?.addEventListener('click', () => setCardCollapsed(!this._cardCollapsed));
-      // tapping the 3D canvas tucks the parts panel away
-      this.root.querySelector('#viewport-canvas')?.addEventListener('pointerdown', () => { if (!this._cardCollapsed) setCardCollapsed(true); });
     }
 
-    // the detail editor + action tools live in a standalone modal; relocate the
-    // tool bars into it (keeps their ids → existing bindings/_renderAlignBar work)
-    const toolsBlock = this.root.querySelector('.card-tools');
-    const toolsHost = this.root.querySelector('#part-modal-tools');
-    if (toolsBlock && toolsHost) toolsHost.appendChild(toolsBlock);
-    this.root.querySelector('#card-edit')?.addEventListener('click', (e) => this._openPartModal(e.currentTarget.getBoundingClientRect()));
-    this.root.querySelector('#part-modal-close')?.addEventListener('click', () => this._closeModal('#part-modal'));
-    const partModal = this.root.querySelector('#part-modal');
-    if (partModal) partModal.addEventListener('mousedown', (e) => { if (e.target === partModal) this._closeModal('#part-modal'); });
+    // ── unified panel: fold the Add gallery + settings into their tabs ──
+    // (move the existing markup so all ids / handlers keep working)
+    const shapesHost = this.root.querySelector('#shapes-host');
+    const addBody = this.root.querySelector('#add-modal .modal-body');
+    if (shapesHost && addBody) shapesHost.appendChild(addBody);
+    const settingsHost = this.root.querySelector('#settings-host');
+    if (settingsHost) {
+      const moveInto = (sel) => { const el = this.root.querySelector(sel); if (el) settingsHost.appendChild(el); };
+      const lab = (t) => { const d = document.createElement('div'); d.className = 'menu-lab'; d.textContent = t; settingsHost.appendChild(d); };
+      lab('Mode'); moveInto('#mode-tabs');
+      lab('Level'); moveInto('#tier-switch');
+      lab('Display & view'); moveInto('#view-modal .view-body');
+    }
+    // panel tabs (Parts · Shapes · Settings · Edit)
+    this.root.querySelectorAll('.ptab').forEach((b) => b.addEventListener('click', () => this._setPanelTab(b.dataset.ptab)));
 
     // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to the
     // selection. Long-pressing a part in the scene arms the same mode (see
@@ -2445,18 +2470,15 @@ export class App {
       this._switchMode('build');
       if (this.mode !== 'build') return;
     }
-    const m = this.root.querySelector('#add-modal');
-    if (!m) return;
-    m.classList.remove('hidden');
     const s = this.root.querySelector('#add-search'); if (s) { s.value = ''; this._filterAdd(''); } // fresh each open
-    this._positionAddModal();
+    this._setPanelTab('shapes');
   }
 
   // Filter the Add-modal items by a search query; hide non-matching buttons and
   // any category left with no matches (and show the grids even if collapsed).
   _filterAdd(query) {
     const q = (query || '').trim().toLowerCase();
-    const modal = this.root.querySelector('#add-modal');
+    const modal = this.root.querySelector('#shapes-host');
     if (!modal) return;
     modal.classList.toggle('searching', !!q);
     let matched = 0;
@@ -2471,7 +2493,6 @@ export class App {
     });
     const empty = modal.querySelector('#add-empty');
     if (empty) empty.classList.toggle('hidden', !(q && matched === 0));
-    this._positionAddModal();
   }
 
   // Stick the modal panel just under the "+" button (clamped to the viewport).
@@ -2900,34 +2921,27 @@ export class App {
     host.querySelectorAll('[data-rdup]').forEach((el) => el.addEventListener('click', () => this._duplicateNode(+el.dataset.rdup)));
   }
 
-  // Open the standalone part editor for the current selection.
-  // Open the detail editor as a popover that grows out of the button/row that
-  // triggered it (pass that element's bounding rect as anchorRect).
-  _openPartModal(anchorRect) {
-    this._renderBuildTree();   // fills #part-modal-fields for the selected part
-    const modal = this.root.querySelector('#part-modal');
-    const panel = modal && modal.querySelector('.part-modal-panel');
-    if (!modal || !panel) return;
-    modal.classList.remove('hidden');
-    const pw = panel.offsetWidth || 360, ph = panel.offsetHeight || 360;
-    const W = window.innerWidth, H = window.innerHeight;
+  // Show the per-part editor — the Edit tab (2nd column) of the unified panel.
+  _openPartModal() {
+    this._setPanelTab('edit');
+  }
+
+  // Switch the unified panel to a tab. 'edit' slides out the editor as a 2nd
+  // column (the panel widens) while the parts list stays in the main column.
+  _setPanelTab(tab) {
+    this._panelTab = tab;
+    if (tab !== 'settings' && this.mode !== 'build') this._switchMode('build'); // Parts/Shapes/Edit are build concepts
+    if (this._cardCollapsed) this._setCardCollapsed(false);
+    this.root.querySelectorAll('.ptab').forEach((b) => b.classList.toggle('on', b.dataset.ptab === tab));
+    const mainTab = tab === 'edit' ? 'parts' : tab;
+    this.root.querySelectorAll('.ppane').forEach((p) => p.classList.toggle('hidden', p.dataset.pane !== mainTab));
+    const editCol = this.root.querySelector('#pcol-edit');
+    if (editCol) editCol.classList.toggle('hidden', tab !== 'edit');
     const card = this.root.querySelector('#part-card');
-    const cr = card ? card.getBoundingClientRect() : null;
-    if (anchorRect) {
-      const by = anchorRect.top + anchorRect.height / 2;
-      // sit just past the sidebar's edge (so it doesn't cover the list) but grow
-      // from the side facing it, at the clicked row's height
-      const onRight = !!cr && this._cardDock === 'right';
-      let left = onRight ? (cr.left - pw - 10) : (cr ? cr.right + 10 : anchorRect.right + 10);
-      left = Math.max(8, Math.min(left, W - pw - 8));
-      const top = Math.max(52, Math.min(anchorRect.top, H - ph - 8));
-      panel.style.left = `${left}px`; panel.style.top = `${top}px`;
-      panel.style.transformOrigin = `${onRight ? pw : 0}px ${Math.max(0, Math.min(ph, by - top))}px`;
-    } else {
-      panel.style.left = `${Math.max(8, (W - pw) / 2)}px`; panel.style.top = `${Math.max(52, (H - ph) / 2)}px`;
-      panel.style.transformOrigin = 'center';
-    }
-    panel.classList.remove('pm-in'); void panel.offsetWidth; panel.classList.add('pm-in');
+    if (card) card.classList.toggle('editing', tab === 'edit');
+    this._syncBuildTools();
+    if (tab === 'edit') this._renderBuildTree();
+    this._renderAlignBar();
   }
 
   // The "collapse/expand all" control reflects and flips every part card's
@@ -3046,16 +3060,30 @@ export class App {
             <span class="card-grip" title="Drag to move · snaps to either edge">⠿</span>
             <span class="card-title" id="parts-count">Parts</span>
             <span class="card-head-acts">
-              <button id="card-edit" class="card-ic" title="Edit selected part(s)">✎</button>
-              <button id="card-snap" class="card-ic" title="Dock left / right / float">▣</button>
-              <button id="card-min" class="card-ic" title="Collapse">▾</button>
+              <button id="card-snap" class="card-ic" title="Dock left / right">▣</button>
+              <button id="card-min" class="card-ic" title="Collapse">«</button>
             </span>
           </div>
-          <div class="card-body" id="card-body">
-            <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
-            <p class="hint" id="parts-hint">Tap a part to edit · long-press to multi-select · drag the header to move this card</p>
-            <div id="build-list" class="build-list"></div>
-            <div class="card-tools">
+          <div class="ptabs" role="tablist">
+            <button class="ptab on" data-ptab="parts">Parts</button>
+            <button class="ptab" data-ptab="shapes">Shapes</button>
+            <button class="ptab" data-ptab="settings">Settings</button>
+            <button class="ptab" data-ptab="edit" id="ptab-edit">Edit</button>
+          </div>
+          <div class="pcols" id="pcols">
+            <div class="pcol-main">
+              <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
+              <div class="ppane" data-pane="parts">
+                <p class="hint" id="parts-hint">Tap a part to edit · long-press to multi-select</p>
+                <div id="build-list" class="build-list"></div>
+              </div>
+              <div class="ppane hidden" data-pane="shapes"><div id="shapes-host"></div></div>
+              <div class="ppane hidden" data-pane="settings"><div id="settings-host"></div></div>
+            </div>
+            <div class="pcol-edit hidden" id="pcol-edit">
+              <div class="pedit-head">Edit <span id="part-modal-metrics" class="pm-metrics">—</span></div>
+              <div id="part-modal-fields"></div>
+              <div class="card-tools">
             <div class="xform" id="xform">
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
@@ -3118,18 +3146,6 @@ export class App {
               <button data-gmode="hull" title="Hull — smooth blend / loft across the parts">⬭</button>
             </div>
             </div>
-          </div>
-        </div>
-
-        <div id="part-modal" class="modal-overlay hidden">
-          <div class="modal-panel part-modal-panel" role="dialog" aria-label="Part editor">
-            <div class="modal-head">
-              <span class="modal-title">Edit part <span id="part-modal-metrics" class="pm-metrics">—</span></span>
-              <button class="modal-x" id="part-modal-close" title="Close (Esc)">✕</button>
-            </div>
-            <div class="modal-body">
-              <div id="part-modal-fields"></div>
-              <div id="part-modal-tools"></div>
             </div>
           </div>
         </div>
