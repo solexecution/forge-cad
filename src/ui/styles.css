@@ -627,6 +627,7 @@ input[type=range]::-moz-range-thumb {
   border-radius: 5px; padding: 3px 7px; cursor: pointer;
 }
 .mini-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.mini-btn.confirm { border-color: var(--red); color: var(--red); } /* armed destructive (e.g. Clear all?) */
 
 .build-node.collapsed .bn-fields,
 .build-node.collapsed .bn-clear,

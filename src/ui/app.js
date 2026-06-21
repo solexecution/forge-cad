@@ -830,6 +830,20 @@ export class App {
     this._renderAlignBar();
   }
 
+  // Remove every part — a fresh, empty plate (undoable via history).
+  _clearCanvas() {
+    if (!this.buildTree.nodes || !this.buildTree.nodes.length) return;
+    this.buildTree.nodes = [];
+    this.selectedNodes = [];
+    this.selectedNode = -1;
+    if (this._panelTab === 'edit') this._setPanelTab('parts');
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+    this._renderAlignBar();
+    this._toast('Canvas cleared');
+  }
+
   _duplicateSelected() {
     if (!this.selectedNodes.length) return;
     const nodes = this.buildTree.nodes;
@@ -1228,6 +1242,7 @@ export class App {
     add('Redo', 'Ctrl+Y', 'Edit', () => A._redo());
     add('Group selection', 'Ctrl+G', 'Edit', () => A._group());
     add('Ungroup', '', 'Edit', () => A._ungroup());
+    add('Clear canvas', 'remove all parts', 'Edit', () => A._clearCanvas());
     add('Export STL', 'for slicing', 'Export', () => { if (A.currentModel) triggerDownload(exportSTL(A.currentModel), 'part.stl'); });
     add('Export 3MF', 'units + colour', 'Export', () => { if (A.currentModel) triggerDownload(A._build3MF(), 'part.3mf'); });
     add('Export OBJ', 'mesh', 'Export', () => { if (A.currentModel) triggerDownload(exportOBJ(A.currentModel), 'part.obj'); });
@@ -2467,6 +2482,19 @@ export class App {
     this.root.querySelector('#engrave-text')?.addEventListener('click', () => this._engraveText());
     const collapseAll = this.root.querySelector('#collapse-all');
     if (collapseAll) collapseAll.addEventListener('click', () => this._collapseAll());
+    const clearBtn = this.root.querySelector('#clear-canvas');
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      // two-click confirm (it's undoable, but emptying the plate deserves a beat)
+      if (clearBtn.classList.contains('confirm')) {
+        clearTimeout(this._clearArmT);
+        clearBtn.classList.remove('confirm'); clearBtn.textContent = 'Clear';
+        this._clearCanvas();
+      } else {
+        clearBtn.classList.add('confirm'); clearBtn.textContent = 'Clear all?';
+        clearTimeout(this._clearArmT);
+        this._clearArmT = setTimeout(() => { clearBtn.classList.remove('confirm'); clearBtn.textContent = 'Clear'; }, 3000);
+      }
+    });
 
     // Add modal: open / close / backdrop-dismiss
     const modal = this.root.querySelector('#add-modal');
@@ -2724,6 +2752,11 @@ export class App {
         const name = n ? (n.kind === 'imported' ? (n.meshName || 'mesh') : (n.kind || 'part')) : 'part';
         hintEl.textContent = `Editing ${name} — change anything below`;
       } else hintEl.textContent = total ? 'Tap a part to edit · long-press to multi-select' : 'Tap + to add your first part';
+    }
+    const clearEl = this.root.querySelector('#clear-canvas');
+    if (clearEl) {
+      clearEl.hidden = !total; // only offer Clear when there's something to clear
+      if (!total) { clearEl.classList.remove('confirm'); clearEl.textContent = 'Clear'; }
     }
   }
 
@@ -3118,7 +3151,10 @@ export class App {
             <div class="pcol-main">
               <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
               <div class="ppane" data-pane="parts">
-                <p class="hint" id="parts-hint">Tap a part to edit · long-press to multi-select</p>
+                <div class="parts-head">
+                  <p class="hint" id="parts-hint">Tap a part to edit · long-press to multi-select</p>
+                  <button class="mini-btn" id="clear-canvas" title="Remove all parts from the plate" hidden>Clear</button>
+                </div>
                 <div id="build-list" class="build-list"></div>
               </div>
               <div class="ppane hidden" data-pane="shapes"><div id="shapes-host"></div></div>
