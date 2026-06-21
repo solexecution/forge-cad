@@ -312,9 +312,19 @@ body {
 /* phone: the sidebar becomes a bottom sheet so the canvas keeps the width */
 @media (max-width: 600px) {
   .part-card.dock-left, .part-card.dock-right, .part-card.float {
-    top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 52vh; border-radius: 12px;
+    top: auto; left: calc(var(--rail-w) + 8px); right: 8px; bottom: 8px; width: auto; max-height: 52vh; border-radius: 12px;
   }
 }
+
+/* ===== bottom-bar layout (mode 4): the inspector docks to the bottom ====== */
+body.layout-bottom .part-card.dock-left,
+body.layout-bottom .part-card.dock-right,
+body.layout-bottom .part-card.float {
+  top: auto; left: var(--rail-w); right: 0; bottom: 0; width: auto; max-width: none;
+  max-height: 48vh; border-radius: 12px 12px 0 0;
+}
+body.layout-bottom .part-card.collapsed { transform: translateY(100%); }
+body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at the bottom */
 
 /* left drawer — a collapsible blade that overlays the full-bleed canvas */
 .panel {

@@ -306,6 +306,7 @@ export class App {
     window.__recipes = RECIPES; // simple-mode makes (test hook)
     this._bindEvents();
     this._initTheme();    // apply saved light/dark before the first compile tints the meshes
+    this._initLayout();   // apply saved layout (side inspector vs bottom bar)
     this.recompile(true);
     this._pushHistory();
     this._initProjects(); // restore last project (or adopt the starter as the first)
@@ -545,8 +546,9 @@ export class App {
     const dock = this._cardDock || 'left';
     const collapsed = !!this._cardCollapsed;
     // the HUD / nav-cube only need to dodge an *expanded* side dock
-    stage.classList.toggle('cardleft', build && dock === 'left' && !collapsed);
-    stage.classList.toggle('cardright', build && dock === 'right' && !collapsed);
+    const sideDock = this._layout !== 'bottom'; // the bottom sheet doesn't push the HUD/cube
+    stage.classList.toggle('cardleft', sideDock && build && dock === 'left' && !collapsed);
+    stage.classList.toggle('cardright', sideDock && build && dock === 'right' && !collapsed);
     const toggleBtn = this.root.querySelector('#parts-toggle');
     if (toggleBtn) {
       toggleBtn.classList.toggle('hidden', !build);          // only relevant in build mode
@@ -558,6 +560,28 @@ export class App {
 
   _saveCardDock() {
     try { localStorage.setItem('randr.cardDock', JSON.stringify({ mode: this._cardDock || 'left', collapsed: !!this._cardCollapsed })); } catch { /* quota */ }
+  }
+
+  _initLayout() {
+    let saved = 'inspector';
+    try { saved = localStorage.getItem('randr.layout') || 'inspector'; } catch { /* private mode */ }
+    this._applyLayout(saved === 'bottom' ? 'bottom' : 'inspector');
+  }
+
+  _toggleLayout() { this._applyLayout(this._layout === 'bottom' ? 'inspector' : 'bottom'); }
+
+  // Switch between the side inspector (mode 1) and the bottom bar (mode 4).
+  _applyLayout(layout) {
+    this._layout = layout === 'bottom' ? 'bottom' : 'inspector';
+    document.body.classList.toggle('layout-bottom', this._layout === 'bottom');
+    document.body.classList.toggle('layout-inspector', this._layout === 'inspector');
+    const b = this.root.querySelector('#layout-toggle');
+    if (b) {
+      b.classList.toggle('on', this._layout === 'bottom');
+      b.title = this._layout === 'bottom' ? 'Bottom bar — tap for side panel' : 'Side panel — tap for bottom bar';
+    }
+    try { localStorage.setItem('randr.layout', this._layout); } catch { /* ignore */ }
+    this._applyCardLayout();
   }
 
   // --- layer preview (slice into printed layers) ---------------------------
@@ -1228,6 +1252,7 @@ export class App {
     add('Toggle grid', 'G', 'View', () => clickBtn('#v-grid'));
     add('Toggle mm grid', '', 'View', () => clickBtn('#v-mmgrid'));
     add('Toggle light / dark theme', '', 'View', () => clickBtn('#v-theme'));
+    add('Switch layout (side / bottom)', '', 'View', () => A._toggleLayout());
     add('Toggle wireframe', '', 'View', () => clickBtn('#v-wire'));
     add('Auto-orient for printing', 'least support', 'Prep', () => A._autoOrient());
     add('Scale to fit the plate', '', 'Prep', () => A._scaleToFit());
@@ -2153,6 +2178,7 @@ export class App {
 
     // view controls
     $('#rail-home')?.addEventListener('click', () => this.viewport.homeView());
+    $('#layout-toggle')?.addEventListener('click', () => this._toggleLayout());
     $('#v-grid').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleGrid()));
     $('#v-mmgrid')?.addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleFineGrid()));
     $('#v-theme')?.addEventListener('click', () => this._setTheme(!this._lightTheme));
@@ -3119,7 +3145,7 @@ export class App {
           <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
           <div class="rail-spacer"></div>
           <button class="rail-btn" id="parts-toggle" title="Show / hide the parts panel">▤</button>
-          <button class="rail-btn" id="layout-toggle" title="Switch layout — inspector / bottom bar" hidden>⟷</button>
+          <button class="rail-btn" id="layout-toggle" title="Switch layout — side panel / bottom bar">⟷</button>
         </nav>
 
         <header class="topbar">
