@@ -333,9 +333,8 @@ export class App {
     const b = document.querySelector('#v-theme');
     if (b) {
       b.classList.toggle('on', this._lightTheme);
-      b.innerHTML = this._lightTheme
-        ? '<span class="vico">◑</span>Dark mode'
-        : '<span class="vico">◐</span>Light mode';
+      b.textContent = this._lightTheme ? '◑' : '◐';
+      b.title = this._lightTheme ? 'Light mode — tap for dark' : 'Dark mode — tap for light';
     }
     try { localStorage.setItem('randr.theme', this._lightTheme ? 'light' : 'dark'); } catch { /* ignore */ }
     if (recompile && this.viewport) this.recompile();
@@ -2151,7 +2150,6 @@ export class App {
     this._updateHistoryButtons();
 
     // view controls
-    $('#v-fit').addEventListener('click', () => this.viewport.fitView());
     $('#rail-home')?.addEventListener('click', () => this.viewport.homeView());
     $('#v-grid').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleGrid()));
     $('#v-mmgrid')?.addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleFineGrid()));
@@ -3084,9 +3082,15 @@ export class App {
           <button class="rail-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
           <button class="rail-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
           <div class="rail-sep"></div>
-          <button class="rail-btn" id="rail-home" title="Home view — front, whole plate">⌂</button>
-          <button class="rail-btn" id="v-fit" title="Fit to model (F)">⤢</button>
-          <button class="rail-btn" id="view-open" title="View &amp; display">◐</button>
+          <button class="rail-btn" id="rail-home" title="Home — frame the whole plate">⌂</button>
+          <div class="rail-sep"></div>
+          <button class="rail-btn on" id="v-grid" title="Grid">▦</button>
+          <button class="rail-btn" id="v-mmgrid" title="mm grid">⊞</button>
+          <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
+          <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
+          <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
+          <div class="rail-sep"></div>
+          <button class="rail-btn" id="view-open" title="More — quality, measure, print prep, help">⋯</button>
           <div class="rail-sep"></div>
           <div class="menu" id="gear-menu">
             <button class="rail-btn" id="gear-btn" title="Mode · experience level" aria-label="Settings">⚙</button>
@@ -3294,13 +3298,7 @@ export class App {
               <button class="modal-x" id="view-close" title="Close (Esc)">✕</button>
             </div>
             <div class="modal-body view-body">
-              <section class="vcat"><h4>Display</h4><div class="vgrid">
-                <button class="vbtn on" id="v-grid"><span class="vico">▦</span>Grid</button>
-                <button class="vbtn" id="v-mmgrid"><span class="vico">⊞</span>mm grid</button>
-                <button class="vbtn" id="v-wire"><span class="vico">◇</span>Wireframe</button>
-                <button class="vbtn on" id="v-snap"><span class="vico">⌗</span>Snap 1mm</button>
-                <button class="vbtn" id="v-theme"><span class="vico">◐</span>Light mode</button>
-              </div>
+              <section class="vcat"><h4>Quality</h4>
               <label class="vquality">Curve smoothness
                 <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
                   <option value="24">◍ Draft</option>

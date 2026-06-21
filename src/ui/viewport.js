@@ -1301,7 +1301,6 @@ export class Viewport {
       + '<button class="nav-arrow nav-down" data-rot="down" title="Tilt down">▾</button>'
       + '<button class="nav-arrow nav-left" data-rot="left" title="Turn left">◂</button>'
       + '<button class="nav-arrow nav-right" data-rot="right" title="Turn right">▸</button>'
-      + '<button class="nav-home" title="Home view (front + fit)">⌂</button>'
       + '</div>'
       + '<canvas id="nav-axis" title="Tap an axis to look down it"></canvas>';
     (this.canvas.parentElement || document.body).appendChild(wrap);
@@ -1338,7 +1337,7 @@ export class Viewport {
 
     // --- rotate arrows + home ---
     wrap.querySelectorAll('[data-rot]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.rotateView(b.dataset.rot); }));
-    wrap.querySelector('.nav-home').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.homeView(); });
+    // home now lives on the left rail (a single reframe button) — no nav-cube home
 
     // --- the axis gizmo (Blender-style) ---
     this._setupNavAxis(wrap.querySelector('#nav-axis'));
