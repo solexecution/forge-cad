@@ -54,7 +54,7 @@ body {
 
 /* floating top bar — overlays the canvas, only the controls capture clicks */
 .topbar {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 24; /* above the parts sidebar (22) so its menus aren't covered */
   height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 10px;
   background: linear-gradient(180deg, rgba(22,25,29,.94), rgba(22,25,29,.55) 75%, rgba(22,25,29,0));
   pointer-events: none;
