@@ -2279,7 +2279,6 @@ export class App {
       const lab = (t) => { const d = document.createElement('div'); d.className = 'menu-lab'; d.textContent = t; settingsHost.appendChild(d); };
       lab('Mode'); moveInto('#mode-tabs');
       lab('Level'); moveInto('#tier-switch');
-      lab('Quality'); moveInto('.vquality');
     }
     // panel tabs (Parts · Shapes · Settings · Edit)
     this.root.querySelectorAll('.ptab').forEach((b) => b.addEventListener('click', () => this._setPanelTab(b.dataset.ptab)));
@@ -3140,7 +3139,12 @@ export class App {
           <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
           <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
           <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
-          <button class="rail-btn wide" id="view-open" title="Print prep &amp; inspect">⤓ Prep</button>
+          <button class="rail-btn prep" id="v-overhang" title="Overhang check">◣</button>
+          <button class="rail-btn prep" id="v-orient" title="Auto-orient for printing">⤓</button>
+          <button class="rail-btn prep" id="v-fit-plate" title="Scale to fit the plate">⤡</button>
+          <button class="rail-btn prep" id="v-cut" title="Cut in half">✂</button>
+          <button class="rail-btn prep" id="v-measure" title="Measure distance">📏</button>
+          <button class="rail-btn prep" id="v-layers" title="Layer preview">≣</button>
           <div class="rail-sep"></div>
           <div class="menu" id="gear-menu">
             <button class="rail-btn" id="gear-btn" title="Mode · experience level" aria-label="Settings">⚙</button>
@@ -3328,35 +3332,6 @@ export class App {
           </div>
         </div>
 
-        <div id="view-modal" class="modal-overlay center hidden">
-          <div class="modal-panel view-panel" role="dialog" aria-label="View and tools">
-            <div class="modal-head">
-              <span class="modal-title">Print prep &amp; inspect</span>
-              <button class="modal-x" id="view-close" title="Close (Esc)">✕</button>
-            </div>
-            <div class="modal-body view-body">
-              <label class="vquality">Curve smoothness
-                <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
-                  <option value="24">◍ Draft</option>
-                  <option value="48">◍ Standard</option>
-                  <option value="64" selected>◍ Smooth</option>
-                  <option value="128">◍ Ultra</option>
-                </select>
-              </label>
-              <section class="vcat" data-vcat="inspect"><h4>Inspect</h4><div class="vgrid">
-                <button class="vbtn" id="v-measure"><span class="vico">📏</span>Measure</button>
-                <button class="vbtn" id="v-layers"><span class="vico">≣</span>Layers</button>
-              </div></section>
-              <section class="vcat" data-vcat="prep"><h4>Print prep</h4><div class="vgrid">
-                <button class="vbtn" id="v-overhang"><span class="vico">◣</span>Overhang</button>
-                <button class="vbtn" id="v-orient"><span class="vico">⤓</span>Auto-orient</button>
-                <button class="vbtn" id="v-fit-plate"><span class="vico">⤡</span>Fit plate</button>
-                <button class="vbtn" id="v-cut"><span class="vico">✂</span>Cut in half</button>
-              </div></section>
-            </div>
-          </div>
-        </div>
-
         <div id="cmd-modal" class="modal-overlay center hidden">
           <div class="modal-panel cmd-panel" role="dialog" aria-label="Command palette">
             <input id="cmd-input" class="cmd-input" type="text" spellcheck="false" autocomplete="off"
@@ -3394,7 +3369,17 @@ export class App {
               <span class="modal-title">Settings</span>
               <button class="modal-x" id="settings-close" title="Close (Esc)">✕</button>
             </div>
-            <div class="modal-body" id="settings-host"></div>
+            <div class="modal-body" id="settings-host">
+              <div class="menu-lab">Quality</div>
+              <label class="vquality">Curve smoothness
+                <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
+                  <option value="24">◍ Draft</option>
+                  <option value="48">◍ Standard</option>
+                  <option value="64" selected>◍ Smooth</option>
+                  <option value="128">◍ Ultra</option>
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 
