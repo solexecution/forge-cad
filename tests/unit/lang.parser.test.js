@@ -179,9 +179,6 @@ describe('parser — unary & member access', () => {
   });
 
   it('parses a unary minus inside a larger expression (1 + -2)', () => {
-    // The parser grammar lists '!' as a unary op, but the tokenizer never emits
-    // a bare '!' punct token (it is not in SINGLE), so unary-not is unreachable
-    // through the real front-end — only '-' unary is exercisable here.
     const e = firstStmt('1 + -2;').expr;
     expect(e.op).toBe('+');
     expect(e.left).toMatchObject({ type: 'Number', value: 1 });
@@ -194,6 +191,29 @@ describe('parser — unary & member access', () => {
     expect(e.type).toBe('Unary');
     expect(e.operand.type).toBe('Unary');
     expect(e.operand.operand).toMatchObject({ type: 'Number', value: 3 });
+  });
+
+  it('parses a unary not (!x)', () => {
+    const e = firstStmt('!x;').expr;
+    expect(e.type).toBe('Unary');
+    expect(e.op).toBe('!');
+    expect(e.operand).toMatchObject({ type: 'Ident', name: 'x' });
+  });
+
+  it('parses unary not on a boolean literal (!true)', () => {
+    const e = firstStmt('!true;').expr;
+    expect(e).toMatchObject({
+      type: 'Unary',
+      op: '!',
+      operand: { type: 'Ident', name: 'true' },
+    });
+  });
+
+  it('keeps != as a binary operator, distinct from unary ! (a != b)', () => {
+    const e = firstStmt('a != b;').expr;
+    expect(e).toMatchObject({ type: 'Binary', op: '!=' });
+    expect(e.left).toMatchObject({ type: 'Ident', name: 'a' });
+    expect(e.right).toMatchObject({ type: 'Ident', name: 'b' });
   });
 
   it('parses member access', () => {

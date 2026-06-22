@@ -68,6 +68,18 @@ describe('lang compile pipeline', () => {
     overridden.result.delete();
   });
 
+  it('evaluates a unary not (!) end to end via a param default', () => {
+    // Regression: '!' used to be untokenizable, so any use threw at tokenize
+    // time even though the parser and evaluator supported unary not.
+    const a = compile('param flip = !false;');
+    expect(a.error).toBeNull();
+    expect(a.params.find((p) => p.name === 'flip')?.default).toBe(true);
+
+    const b = compile('param flip = !true;');
+    expect(b.error).toBeNull();
+    expect(b.params.find((p) => p.name === 'flip')?.default).toBe(false);
+  });
+
   it('returns an error (does not throw) on a syntax error', () => {
     let out;
     expect(() => {

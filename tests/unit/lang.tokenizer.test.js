@@ -82,9 +82,29 @@ describe('tokenizer — identifiers, strings, operators, punctuation', () => {
   });
 
   it('tokenizes single-char punctuation as punct tokens', () => {
-    const toks = stripEof(tokenize('(){}[],;=+-*/%<>.:'));
+    const toks = stripEof(tokenize('(){}[],;=+-*/%<>.:!'));
     expect(toks.every((t) => t.type === 'punct')).toBe(true);
-    expect(toks.map((t) => t.value).join('')).toBe('(){}[],;=+-*/%<>.:');
+    expect(toks.map((t) => t.value).join('')).toBe('(){}[],;=+-*/%<>.:!');
+  });
+
+  it('tokenizes a bare ! as a punct token (logical not)', () => {
+    const [t] = stripEof(tokenize('!'));
+    expect(t.type).toBe('punct');
+    expect(t.value).toBe('!');
+  });
+
+  it('still tokenizes != as one two-char op (not ! followed by =)', () => {
+    const toks = stripEof(tokenize('!='));
+    expect(toks).toHaveLength(1);
+    expect(toks[0]).toMatchObject({ type: 'op', value: '!=' });
+  });
+
+  it('tokenizes !x as a not-operator then an identifier', () => {
+    const toks = stripEof(tokenize('!x'));
+    expect(toks.map((t) => [t.type, t.value])).toEqual([
+      ['punct', '!'],
+      ['ident', 'x'],
+    ]);
   });
 
   it('always appends a trailing eof token', () => {
@@ -101,10 +121,9 @@ describe('tokenizer — identifiers, strings, operators, punctuation', () => {
 });
 
 describe('tokenizer — positions', () => {
-  // NOTE: the tokenizer consumes a whole token before calling push(), so the
-  // recorded line/col mark the position just AFTER the token, while `start` is
-  // the begin offset and `end` is the (exclusive) offset after it. These tests
-  // assert that actual behavior, using `start`/`end` to verify the span.
+  // line/col mark where a token BEGINS (1-based); `start`/`end` are the
+  // [start, end) character-offset span. The editor maps a caret to a shape via
+  // start/end; the parser uses line/col for error messages.
   it('records char-offset span via start/end', () => {
     // 'ab cd' -> two idents.
     const [a, b] = stripEof(tokenize('ab cd'));
@@ -112,28 +131,30 @@ describe('tokenizer — positions', () => {
     expect(a.end).toBe(2); // 'ab' occupies [0,2)
     expect(b.start).toBe(3); // 'cd' begins after the space
     expect(b.end).toBe(5);
-    expect(a.line).toBe(1);
   });
 
-  it('records col as the position after the token (push happens post-consume)', () => {
-    const [a] = stripEof(tokenize('ab cd'));
-    // col is 1-based and points past 'ab' (cols 1,2 consumed -> now at 3).
-    expect(a.col).toBe(3);
+  it('records line/col at the start of each token', () => {
+    const [a, b] = stripEof(tokenize('ab cd'));
+    expect(a.line).toBe(1);
+    expect(a.col).toBe(1); // 'ab' begins at column 1
+    expect(b.line).toBe(1);
+    expect(b.col).toBe(4); // 'cd' begins at column 4 (after 'ab' and a space)
   });
 
   it('advances line numbers across newlines', () => {
     const [a, b] = stripEof(tokenize('a\nb'));
     expect(a.line).toBe(1);
+    expect(a.col).toBe(1);
     expect(b.line).toBe(2);
-    // 'b' begins at offset 2 (after 'a' and '\n').
-    expect(b.start).toBe(2);
+    expect(b.col).toBe(1); // 'b' begins at the start of line 2
+    expect(b.start).toBe(2); // offset 2 (after 'a' and '\n')
   });
 
   it('sets token end past the last consumed char', () => {
     const [n] = stripEof(tokenize('10mm'));
-    // start at 0, end is the exclusive offset after 'mm' (length 4).
     expect(n.start).toBe(0);
-    expect(n.end).toBe(4);
+    expect(n.end).toBe(4); // exclusive offset after 'mm' (length 4)
+    expect(n.col).toBe(1); // the number begins at column 1
   });
 });
 

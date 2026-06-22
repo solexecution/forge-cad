@@ -4,18 +4,25 @@
 // the grammar tight is what lets the evaluator stay trustworthy.
 
 const TWO_CHAR = ['<=', '>=', '==', '!=', '&&', '||'];
-const SINGLE = '(){}[],;=+-*/%<>.:';
+// '!' is a single-char operator (logical not). '!=' still wins because TWO_CHAR
+// is matched before SINGLE below.
+const SINGLE = '(){}[],;=+-*/%<>.:!';
 
 export function tokenize(src) {
   const tokens = [];
   let i = 0;
   let line = 1;
   let col = 1;
-  let start = 0; // char offset where the current token began
+  let start = 0;      // char offset where the current token began
+  let startLine = 1;  // line/col where the current token began (1-based)
+  let startCol = 1;
 
   // start/end are character offsets into src — used to map an editor caret
-  // position back to the AST node (and thus the shape) under it.
-  const push = (type, value) => tokens.push({ type, value, line, col, start, end: i });
+  // position back to the AST node (and thus the shape) under it. line/col mark
+  // where the token *begins*, so parser error messages point at the token start
+  // rather than just past it.
+  const push = (type, value) =>
+    tokens.push({ type, value, line: startLine, col: startCol, start, end: i });
   const advance = (n = 1) => {
     for (let k = 0; k < n; k++) {
       if (src[i] === '\n') { line++; col = 1; } else { col++; }
@@ -25,6 +32,8 @@ export function tokenize(src) {
 
   while (i < src.length) {
     start = i;
+    startLine = line;
+    startCol = col;
     const c = src[i];
 
     // Whitespace
@@ -99,6 +108,8 @@ export function tokenize(src) {
   }
 
   start = i;
+  startLine = line;
+  startCol = col;
   push('eof', null);
   return tokens;
 }
