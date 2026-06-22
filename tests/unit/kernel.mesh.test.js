@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as THREE from 'three';
 import { setupKernel } from './_kernel.js';
-import { box, sphere } from '../../src/kernel/manifold.js';
+import { box, sphere, cylinder, difference } from '../../src/kernel/manifold.js';
 import { manifoldToGeometry, edgesGeometry } from '../../src/kernel/mesh.js';
 
 // Covers the bridge from the kernel's mesh format into three.js BufferGeometry,
@@ -11,31 +11,22 @@ describe('manifoldToGeometry', () => {
     await setupKernel();
   }, 60000);
 
-  it('returns a BufferGeometry with position, index, and computed normals', () => {
+  it('returns a non-indexed BufferGeometry with positions and creased normals', () => {
     const m = box(10, 20, 30, true);
-    const mesh = m.getMesh();
-    const expectedVerts = mesh.vertProperties.length / mesh.numProp;
-    const expectedTris = mesh.triVerts.length / 3;
+    const expectedTris = m.numTri();
 
     const geom = manifoldToGeometry(m);
     expect(geom).toBeInstanceOf(THREE.BufferGeometry);
 
-    // Position attribute: present, xyz (itemSize 3), array length a multiple of 3.
+    // Creasing splits vertices at hard edges, so the result is non-indexed:
+    // three unique vertices per triangle.
+    expect(geom.getIndex()).toBeNull();
     const pos = geom.getAttribute('position');
     expect(pos).toBeTruthy();
     expect(pos.itemSize).toBe(3);
-    expect(pos.array.length % 3).toBe(0);
-    expect(pos.count).toBeGreaterThan(0);
-    expect(pos.count).toBe(expectedVerts);
+    expect(pos.count).toBe(expectedTris * 3);
 
-    // Index: present and consistent with the manifold's triangle count.
-    const index = geom.getIndex();
-    expect(index).toBeTruthy();
-    expect(index.count).toBe(expectedTris * 3);
-    expect(index.count % 3).toBe(0);
-
-    // computeVertexNormals() runs inside the bridge, so normals must exist and
-    // match the vertex count.
+    // Normals exist and match the (split) vertex count.
     const normal = geom.getAttribute('normal');
     expect(normal).toBeTruthy();
     expect(normal.itemSize).toBe(3);
@@ -49,8 +40,8 @@ describe('manifoldToGeometry', () => {
     const expectedTris = m.numTri();
 
     const geom = manifoldToGeometry(m);
-    expect(geom.getAttribute('position').count).toBeGreaterThan(0);
-    expect(geom.getIndex().count).toBe(expectedTris * 3);
+    expect(geom.getIndex()).toBeNull(); // non-indexed after creasing
+    expect(geom.getAttribute('position').count).toBe(expectedTris * 3);
 
     // The bridge computes bounds; they should be present and finite.
     expect(geom.boundingBox).toBeTruthy();
@@ -60,6 +51,36 @@ describe('manifoldToGeometry', () => {
     expect(geom.boundingSphere.radius).toBeGreaterThan(0);
 
     m.delete();
+  });
+
+  it('keeps flat faces flat: a cut top face does not inherit the hole-rim slope', () => {
+    // A slab with a through-hole: the top face is retriangulated around the
+    // hole. With smooth normals the rim-adjacent top triangles tilt — the fan
+    // of shading streaks seen in the result view. Creased normals keep every
+    // top-face vertex pointing straight up.
+    const slab = box(40, 20, 4, true);
+    const hole = cylinder(20, 3, 48, true); // through the slab
+    const cut = difference([slab, hole]);
+    const geom = manifoldToGeometry(cut);
+
+    const pos = geom.getAttribute('position').array;
+    const nor = geom.getAttribute('normal').array;
+    const topZ = geom.boundingBox.max.z;
+    let topTris = 0;
+    let tiltedTopVerts = 0;
+    for (let t = 0; t < pos.length; t += 9) {
+      // A triangle = 3 verts (9 floats). Pure top-face triangle?
+      const onTop = [0, 3, 6].every((o) => Math.abs(pos[t + o + 2] - topZ) < 1e-3);
+      if (!onTop) continue;
+      topTris++;
+      for (const o of [0, 3, 6]) {
+        if (nor[t + o + 2] < 0.999) tiltedTopVerts++; // not straight up -> bled
+      }
+    }
+    expect(topTris).toBeGreaterThan(0);
+    expect(tiltedTopVerts).toBe(0);
+
+    cut.delete();
   });
 });
 

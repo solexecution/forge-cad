@@ -1,9 +1,12 @@
 // Bridge between the kernel's mesh format and three.js.
 // Manifold gives us a flat vertProperties array (xyz + extras) and a triVerts
-// index array. three.js wants a BufferGeometry. We also compute flat normals
-// here so faceted parts read correctly without smoothing across hard edges.
+// index array. three.js wants a BufferGeometry. We compute *creased* normals so
+// curved facets (cylinders, spheres) stay smooth while hard edges (box corners,
+// hole rims) stay crisp — a plain computeVertexNormals() smooths across every
+// shared vertex, which bleeds hole-rim slopes across flat faces as shading streaks.
 
 import * as THREE from 'three';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export function manifoldToGeometry(manifold) {
   const mesh = manifold.getMesh();
@@ -23,10 +26,14 @@ export function manifoldToGeometry(manifold) {
 
   geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geom.setIndex(new THREE.BufferAttribute(new Uint32Array(triVerts), 1));
-  geom.computeVertexNormals();
-  geom.computeBoundingBox();
-  geom.computeBoundingSphere();
-  return geom;
+
+  // Split vertices at edges sharper than 30° and smooth the rest. Flat faces
+  // keep a single up-normal (no fan-shaped shading streaks on booleaned tops);
+  // gentle curves stay smooth. Returns a non-indexed geometry.
+  const out = toCreasedNormals(geom, THREE.MathUtils.degToRad(30));
+  out.computeBoundingBox();
+  out.computeBoundingSphere();
+  return out;
 }
 
 // Wireframe helper for showing edges over the shaded mesh.
