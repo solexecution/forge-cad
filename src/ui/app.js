@@ -563,8 +563,13 @@ export class App {
   }
 
   _initLayout() {
-    let saved = 'inspector';
-    try { saved = localStorage.getItem('randr.layout') || 'inspector'; } catch { /* private mode */ }
+    let saved = null;
+    try { saved = localStorage.getItem('randr.layout'); } catch { /* private mode */ }
+    if (!saved) {
+      // smart default: touch / narrow screens (tablet) → bottom bar; PC → side panel
+      const tablet = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || window.innerWidth < 1100;
+      saved = tablet ? 'bottom' : 'inspector';
+    }
     this._applyLayout(saved === 'bottom' ? 'bottom' : 'inspector');
   }
 
@@ -578,7 +583,7 @@ export class App {
     const b = this.root.querySelector('#card-layout');
     if (b) {
       b.classList.toggle('on', this._layout === 'bottom');
-      b.title = this._layout === 'bottom' ? 'Bottom bar — tap for side panel' : 'Side panel — tap for bottom bar';
+      b.title = this._layout === 'bottom' ? 'Tablet layout (bottom) — tap for PC (side panel)' : 'PC layout (side) — tap for tablet (bottom bar)';
     }
     try { localStorage.setItem('randr.layout', this._layout); } catch { /* ignore */ }
     this._applyCardLayout();
