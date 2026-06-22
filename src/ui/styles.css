@@ -992,7 +992,7 @@ input[type=range]::-moz-range-thumb {
 .cmd-empty { padding: 22px; text-align: center; color: var(--ink-dim); font-family: var(--mono); font-size: 12px; }
 
 /* the palette is a Maker / Pro power tool — Simple stays clutter-free */
-.tier-simple #cmd-open, .tier-simple .rail-btn.prep { display: none; } /* palette + prep/inspect tools are Pro */
+.tier-simple #cmd-open, .tier-simple .rail-btn.prep, .tier-simple #view-mode-toggle { display: none; } /* palette + prep/inspect + edit/result are Pro */
 
 /* ===== view & tools modal (declutters the top bar) ========================*/
 .view-panel { width: 460px; }

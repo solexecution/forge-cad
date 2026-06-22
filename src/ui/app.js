@@ -451,7 +451,7 @@ export class App {
   // enter-group step needed.
   _setViewMode(mode) {
     this.viewMode = mode;
-    this.root.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === mode));
+    this._syncViewModeBtn();
     if (this.mode !== 'build') return;
     if (mode === 'result') {
       this.viewport.setEditMode(false);
@@ -462,6 +462,16 @@ export class App {
       this._renderEditShapes();
       this.viewport.setGhost(this._wantGhost() ? this.currentModel : null);
     }
+  }
+
+  // Reflect edit/result on the single top-bar toggle (◧ edit ⟷ ◨ result).
+  _syncViewModeBtn() {
+    const t = this.root.querySelector('#view-mode-toggle');
+    if (!t) return;
+    const result = this.viewMode === 'result';
+    t.classList.toggle('on', result);
+    t.textContent = result ? '◨' : '◧';
+    t.title = result ? 'Showing result — tap to edit parts' : 'Editing parts — tap to show result';
   }
 
   // Print-prep overlays (cut-in-half, overhang) render on the merged RESULT
@@ -531,6 +541,7 @@ export class App {
   _syncBuildTools() {
     const build = this.mode === 'build';
     const show = build; // the inspector panel is build-mode only (settings is its own modal now)
+    const vmt = this.root.querySelector('#view-mode-toggle'); if (vmt) vmt.hidden = !build; // edit/result is build-only
     const card = this.root.querySelector('#part-card');
     if (card) card.classList.toggle('hidden', !show);
     this._setPanel(!build); // the code editor (left panel) shows only in code mode
@@ -1511,7 +1522,7 @@ export class App {
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this.root.querySelector('#editor').value = this.source;
-    this.root.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === this.viewMode));
+    this._syncViewModeBtn();
     this._renderBuildTree();
     this._syncBuildTools();
     this.recompile(true);
@@ -2404,9 +2415,8 @@ export class App {
         : 'Cut removed — back to editing.');
     });
 
-    // build view toggle: edit (parts + ghost) vs result (combined solid)
-    this.root.querySelectorAll('[data-view]').forEach((b) =>
-      b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
+    // build view toggle: one button flips edit (parts + ghost) ⟷ result (combined solid)
+    $('#view-mode-toggle')?.addEventListener('click', () => this._setViewMode(this.viewMode === 'result' ? 'edit' : 'result'));
 
     // align toolbar (appears when 2+ shapes are selected)
     this.root.querySelectorAll('[data-align]').forEach((b) =>
@@ -3160,6 +3170,7 @@ export class App {
           <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
           <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
           <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
+          <button class="rail-btn" id="view-mode-toggle" title="Editing parts — tap to show result">◧</button>
           <button class="rail-btn prep" id="v-overhang" title="Overhang check">◣</button>
           <button class="rail-btn prep" id="v-orient" title="Auto-orient for printing">⤓</button>
           <button class="rail-btn prep" id="v-fit-plate" title="Scale to fit the plate">⤡</button>
@@ -3237,11 +3248,6 @@ export class App {
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
               <button data-xform="scale" title="Scale (R)">⤢ size</button>
               <button id="multi-toggle" title="Multi-select — or long-press a part in the scene. Tap parts to add; tap empty to finish.">⊹ multi</button>
-            </div>
-            <div class="xform" id="viewbar">
-              <span class="xform-label">view</span>
-              <button data-view="edit" class="on" title="Edit the parts (ghosts the result of subtract/intersect groups)">◧ edit</button>
-              <button data-view="result" title="Preview the combined result">◨ result</button>
             </div>
             <div class="xform" id="wpbar">
               <span class="xform-label">plane</span>
