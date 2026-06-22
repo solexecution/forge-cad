@@ -1271,6 +1271,7 @@ export class App {
     add('Ungroup', '', 'Edit', () => A._ungroup());
     add('Clear canvas', 'remove all parts', 'Edit', () => A._clearCanvas());
     add('Export STL', 'for slicing', 'Export', () => { if (A.currentModel) triggerDownload(exportSTL(A.currentModel), 'part.stl'); });
+    add('Export for Bambu Studio', '3MF', 'Export', () => { if (A.currentModel) { triggerDownload(A._build3MF(), 'model.3mf'); A._toast('Saved model.3mf — open it in Bambu Studio'); } });
     add('Export 3MF', 'units + colour', 'Export', () => { if (A.currentModel) triggerDownload(A._build3MF(), 'part.3mf'); });
     add('Export OBJ', 'mesh', 'Export', () => { if (A.currentModel) triggerDownload(exportOBJ(A.currentModel), 'part.obj'); });
     [['Draft', 24], ['Standard', 48], ['Smooth', 64], ['Ultra', 128]].forEach(([n, v]) =>
@@ -2148,6 +2149,13 @@ export class App {
     const out = (fn, name) => { if (this.currentModel) triggerDownload(fn(this.currentModel), name); appMenu.classList.remove('open'); };
     $('#btn-stl').addEventListener('click', () => out(exportSTL, 'part.stl'));
     $('#btn-3mf').addEventListener('click', () => { if (this.currentModel) triggerDownload(this._build3MF(), 'part.3mf'); appMenu.classList.remove('open'); });
+    $('#btn-bambu').addEventListener('click', () => {
+      appMenu.classList.remove('open');
+      if (!this.currentModel) { this._toast('Nothing to export yet'); return; }
+      const name = ((this.project && this.project.name) || 'model').replace(/[^\w.-]+/g, '_') || 'model';
+      triggerDownload(this._build3MF(), name + '.3mf'); // 3MF is Bambu's native format (units + per-part colour)
+      this._toast('Saved ' + name + '.3mf — open it in Bambu Studio (tip: set .3mf to open with Bambu Studio)');
+    });
     $('#btn-obj').addEventListener('click', () => out(exportOBJ, 'part.obj'));
 
     // projects manager modal
@@ -3108,8 +3116,9 @@ export class App {
               <div class="menu-fly" id="export-fly">
                 <button class="menu-fly-btn">Export<span class="fly-arr">▸</span></button>
                 <div class="menu-sub">
+                  <button id="btn-bambu">🟢 Bambu Studio · 3MF</button>
                   <button id="btn-stl">STL — for slicing</button>
-                  <button id="btn-3mf">3MF — units, best</button>
+                  <button id="btn-3mf">3MF — units, colour</button>
                   <button id="btn-obj">OBJ — mesh</button>
                 </div>
               </div>
