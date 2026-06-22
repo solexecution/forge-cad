@@ -228,7 +228,8 @@ body.view-result .edit-fab { display: none; }
 .icon-btn.hidden { display: none; }
 .menu-pop button[hidden] { display: none; }
 /* ☰ app menu + ⚙ gear sit at the left of the bar, so their pops anchor left */
-#app-menu .menu-pop, #gear-menu .menu-pop { left: 0; top: calc(100% + 4px); right: auto; min-width: 188px; } /* open below the top bar */
+#app-menu .menu-pop { left: 0; top: calc(100% + 4px); right: auto; min-width: 188px; } /* opens below the top bar */
+#gear-menu .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 210px; } /* gear lives in the left toolbar — opens to the right */
 /* segmented controls (mode / level) reused inside the gear pop */
 .menu-pop .tabs, .menu-pop .tier-switch { width: 100%; margin: 1px 0 3px; }
 .menu-pop .tabs button, .menu-pop .tier-switch button { flex: 1; text-align: center; }
@@ -898,10 +899,10 @@ input[type=range]::-moz-range-thumb {
 .tier-switch button.on { background: var(--surface-2); color: var(--cyan); }
 
 /* first-run chooser cards */
-.tier-panel { width: 560px; }
+.tier-panel { width: 460px; }
 .tier-sub { font-size: 12.5px; color: var(--ink-dim); margin: 4px 2px 13px; line-height: 1.5; }
 .tier-sub b { color: var(--ink); }
-.tier-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tier-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .tier-card {
   display: flex; flex-direction: column; gap: 6px; text-align: left;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;

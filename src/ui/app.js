@@ -2107,10 +2107,7 @@ export class App {
     $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
     const toolsMore = $('#tools-more');
     if (toolsMore) $('#tools-more-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(toolsMore); });
-    $('#gear-btn').addEventListener('click', () => this._openModal('#settings-modal'));
-    $('#settings-close')?.addEventListener('click', () => this._closeModal('#settings-modal'));
-    const settingsModal = $('#settings-modal');
-    if (settingsModal) settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsModal) this._closeModal('#settings-modal'); });
+    $('#gear-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(gearMenu); });
     document.addEventListener('click', () => this.root.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
     // Templates / Export fly-out submenus inside the app menu (tap to open on touch)
     this.root.querySelectorAll('.menu-fly-btn').forEach((b) => b.addEventListener('click', (e) => {
@@ -2285,13 +2282,7 @@ export class App {
 
     // ── unified panel: fold the Add gallery + settings into their tabs ──
     // (move the existing markup so all ids / handlers keep working)
-    const settingsHost = this.root.querySelector('#settings-host');
-    if (settingsHost) {
-      const moveInto = (sel) => { const el = this.root.querySelector(sel); if (el) settingsHost.appendChild(el); };
-      const lab = (t) => { const d = document.createElement('div'); d.className = 'menu-lab'; d.textContent = t; settingsHost.appendChild(d); };
-      lab('Mode'); moveInto('#mode-tabs');
-      lab('Level'); moveInto('#tier-switch');
-    }
+    // mode / level / quality live in the ⚙ gear flyout on the toolbar — no relocation
     // panel tabs (Parts · Shapes · Settings · Edit)
     this.root.querySelectorAll('.ptab').forEach((b) => b.addEventListener('click', () => this._setPanelTab(b.dataset.ptab)));
 
@@ -3162,23 +3153,6 @@ export class App {
           </div>
 
           <div class="rail-right">
-          <div class="menu" id="gear-menu">
-            <button class="rail-btn" id="gear-btn" title="Mode · experience level" aria-label="Settings">⚙</button>
-            <div class="menu-pop">
-              <div class="menu-lab" id="mode-lab">Mode</div>
-              <div class="tabs" id="mode-tabs">
-                <button data-mode="code" class="active">code</button>
-                <button data-mode="build">build</button>
-              </div>
-              <div class="menu-lab">Level</div>
-              <div class="tier-switch" id="tier-switch" role="group" aria-label="Experience level">
-                <button data-tier="simple" title="Simple — pick a thing and size it">Simple</button>
-                <button data-tier="pro" title="Pro — build from parts, measure, code, every tool">Pro</button>
-              </div>
-              <div class="menu-sep"></div>
-              <button id="panel-toggle">Show / hide code panel</button>
-            </div>
-          </div>
           <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
           <button class="rail-btn wide" id="parts-toggle" title="Show / hide the parts panel">▤ Parts</button>
           </div>
@@ -3204,6 +3178,32 @@ export class App {
               <button id="v-orient" class="prep">⤓ Auto-orient</button>
               <button id="v-fit-plate" class="prep">⤡ Fit to plate</button>
               <button id="v-cut" class="prep">✂ Cut in half</button>
+            </div>
+          </div>
+          <div class="menu" id="gear-menu">
+            <button class="rail-btn" id="gear-btn" title="Settings — mode · level · quality" aria-label="Settings">⚙</button>
+            <div class="menu-pop">
+              <div class="menu-lab" id="mode-lab">Mode</div>
+              <div class="tabs" id="mode-tabs">
+                <button data-mode="code" class="active">code</button>
+                <button data-mode="build">build</button>
+              </div>
+              <div class="menu-lab">Level</div>
+              <div class="tier-switch" id="tier-switch" role="group" aria-label="Experience level">
+                <button data-tier="simple" title="Simple — pick a thing and size it">Simple</button>
+                <button data-tier="pro" title="Pro — build from parts, measure, code, every tool">Pro</button>
+              </div>
+              <div class="menu-lab">Quality</div>
+              <label class="vquality">Curve smoothness
+                <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
+                  <option value="24">◍ Draft</option>
+                  <option value="48">◍ Standard</option>
+                  <option value="64" selected>◍ Smooth</option>
+                  <option value="128">◍ Ultra</option>
+                </select>
+              </label>
+              <div class="menu-sep"></div>
+              <button id="panel-toggle">Show / hide code panel</button>
             </div>
           </div>
         </nav>
@@ -3397,26 +3397,6 @@ export class App {
                   <span class="tier-desc">Build from parts, combine, align, code, measure — every tool.</span>
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div id="settings-modal" class="modal-overlay center hidden">
-          <div class="modal-panel view-panel" role="dialog" aria-label="Settings">
-            <div class="modal-head">
-              <span class="modal-title">Settings</span>
-              <button class="modal-x" id="settings-close" title="Close (Esc)">✕</button>
-            </div>
-            <div class="modal-body" id="settings-host">
-              <div class="menu-lab">Quality</div>
-              <label class="vquality">Curve smoothness
-                <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
-                  <option value="24">◍ Draft</option>
-                  <option value="48">◍ Standard</option>
-                  <option value="64" selected>◍ Smooth</option>
-                  <option value="128">◍ Ultra</option>
-                </select>
-              </label>
             </div>
           </div>
         </div>
