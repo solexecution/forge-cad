@@ -1137,7 +1137,7 @@ export class App {
     this.root.querySelector('#editor').value = this.source;
     this._renderBuildTree();
     this._syncBuildTools();
-    this.recompile(true);
+    this.recompile(); // keep the current camera — undo/redo shouldn't reframe the view
     this._restoring = false;
     this._updateHistoryButtons();
   }
