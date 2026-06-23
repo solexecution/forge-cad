@@ -330,8 +330,7 @@ const TOOLBAR_TOOLS = [
   { id: 'v-orient', glyph: '⤓', label: 'Auto-orient', cat: 'Inspect & print', pro: true },
   { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', cat: 'Inspect & print', pro: true },
   { id: 'v-cut', glyph: '✂', label: 'Cut in half', cat: 'Inspect & print', pro: true },
-  { id: 'mode-toggle', glyph: '⌥', label: 'Mode · code / build', cat: 'Mode', pro: true },
-  { id: 'tier-toggle', glyph: '◑', label: 'Level · Simple / Pro', cat: 'Mode' },
+  { id: 'mode-toggle', glyph: '⬓', label: 'Mode · code / build', cat: 'Mode' },
   { id: 'gear-menu', glyph: '⚙', label: 'Settings', cat: 'Settings', opener: true },
 ];
 const TOOLBAR_DEFAULT = [
@@ -342,7 +341,6 @@ const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'v-theme' },
   { type: 'group', gid: 'g-more', label: 'More', glyph: '⋯', items: ['v-mmgrid', 'v-wire', 'v-measure', 'v-layers', 'v-overhang', 'v-orient', 'v-fit-plate', 'v-cut'] },
   { type: 'tool', id: 'mode-toggle' },
-  { type: 'tool', id: 'tier-toggle' },
   { type: 'opener', id: 'gear-menu' },
 ];
 
@@ -436,10 +434,13 @@ export class App {
     this._toolbar.layout = Array.isArray(saved?.layout) && saved.layout.length
       ? saved.layout
       : JSON.parse(JSON.stringify(TOOLBAR_DEFAULT));
-    // migration: surface newly-added tools (the state toggles) on older saved layouts
-    for (const id of ['mode-toggle', 'tier-toggle']) {
-      const has = this._toolbar.layout.some((e) => (e.type === 'group' ? (e.items || []).includes(id) : e.id === id));
-      if (!has && this._toolNodes[id]) this._toolbar.layout.push({ type: 'tool', id });
+    // drop tools that no longer exist (e.g. the removed Simple/Pro toggle)
+    this._toolbar.layout = this._toolbar.layout
+      .map((e) => (e.type === 'group' ? { ...e, items: (e.items || []).filter((id) => this._toolNodes[id]) } : e))
+      .filter((e) => e.type === 'group' || !!this._toolNodes[e.id]);
+    // migration: surface the mode toggle on older saved layouts
+    if (!this._toolbar.layout.some((e) => (e.type === 'group' ? (e.items || []).includes('mode-toggle') : e.id === 'mode-toggle')) && this._toolNodes['mode-toggle']) {
+      this._toolbar.layout.push({ type: 'tool', id: 'mode-toggle' });
     }
     this._renderToolbar();
 
@@ -473,8 +474,7 @@ export class App {
     });
 
     this.root.querySelector('#tools-edit')?.addEventListener('click', () => this._openToolbarModal());
-    this.root.querySelectorAll('[data-seg-mode]').forEach((b) => b.addEventListener('click', () => this._switchMode(b.dataset.segMode)));
-    this.root.querySelectorAll('[data-seg-tier]').forEach((b) => b.addEventListener('click', () => this._setTier(b.dataset.segTier)));
+    this.root.querySelector('#mode-toggle')?.addEventListener('click', () => this._switchMode(this.mode === 'code' ? 'build' : 'code'));
     this._syncStateToggles();
 
     // customise modal: close / reset / backdrop + delegated edit controls
@@ -563,9 +563,14 @@ export class App {
 
   // Code/Build and Simple/Pro toggle buttons show the current value and flip on
   // tap. Kept in sync whenever mode or tier changes (and after a re-render).
+  // Reflect code/build on the single mode toggle, mirroring the edit/result button.
   _syncStateToggles() {
-    this.root.querySelectorAll('[data-seg-mode]').forEach((b) => b.classList.toggle('active', b.dataset.segMode === this.mode));
-    this.root.querySelectorAll('[data-seg-tier]').forEach((b) => b.classList.toggle('active', b.dataset.segTier === this.tier));
+    const m = this.root.querySelector('#mode-toggle');
+    if (!m) return;
+    const code = this.mode === 'code';
+    m.classList.toggle('on', code);
+    m.textContent = code ? '⬒' : '⬓';
+    m.title = code ? 'Code mode — tap for build' : 'Build mode — tap for code';
   }
 
   // --- toolbar customisation (the ✎ modal) ----------------------------------
@@ -1565,14 +1570,7 @@ export class App {
   // Simple is the clutter-free "pick a thing and size it" mode — no code pane,
   // no booleans, no coordinate fields.
   _initTier() {
-    let saved = null;
-    try { saved = localStorage.getItem(TIER_KEY); } catch { /* private mode */ }
-    if (saved === 'simple' || saved === 'maker' || saved === 'pro') {
-      this._setTier(saved);
-    } else {
-      this._setTier('simple', { persist: false }); // sane default behind the chooser
-      this._openModal('#tier-modal');             // first run — let them pick
-    }
+    this._setTier('pro'); // Pro is the only experience level now (Simple removed)
   }
 
   _setTier(tier, { persist = true } = {}) {
@@ -3555,14 +3553,7 @@ export class App {
               <button class="rail-btn prep" id="v-orient" title="Auto-orient">⤓</button>
               <button class="rail-btn prep" id="v-fit-plate" title="Fit to plate">⤡</button>
               <button class="rail-btn prep" id="v-cut" title="Cut in half">✂</button>
-              <div class="tb-seg" id="mode-toggle" role="group" aria-label="Editing mode">
-                <button type="button" data-seg-mode="code">code</button>
-                <button type="button" data-seg-mode="build">build</button>
-              </div>
-              <div class="tb-seg" id="tier-toggle" role="group" aria-label="Experience level">
-                <button type="button" data-seg-tier="simple">Simple</button>
-                <button type="button" data-seg-tier="pro">Pro</button>
-              </div>
+              <button class="rail-btn" id="mode-toggle" title="Build mode — tap for code">⬓</button>
             </div>
           </div>
           <div class="menu" id="gear-menu">
@@ -3572,11 +3563,6 @@ export class App {
               <div class="tabs" id="mode-tabs">
                 <button data-mode="code" class="active">code</button>
                 <button data-mode="build">build</button>
-              </div>
-              <div class="menu-lab">Level</div>
-              <div class="tier-switch" id="tier-switch" role="group" aria-label="Experience level">
-                <button data-tier="simple" title="Simple — pick a thing and size it">Simple</button>
-                <button data-tier="pro" title="Pro — build from parts, measure, code, every tool">Pro</button>
               </div>
               <div class="menu-lab">Quality</div>
               <label class="vquality">Curve smoothness

@@ -106,15 +106,7 @@ test('customize modal edits the bar and persists', async ({ page }) => {
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
-test('tier gating rides along with a relocated tool', async ({ page }) => {
-  await gotoApp(page, { tier: 'simple' });
-  const vm = page.locator('#tools-body #view-mode-toggle'); // pro-only, top-level on the bar
-  await expect(vm).toBeHidden(); // hidden in Simple even though it's on the custom bar
-  await page.evaluate(() => window.__forgeApp._setTier('pro'));
-  await expect(vm).toBeVisible(); // shows again in Pro
-});
-
-test('an empty or all-tier-hidden group is not shown on the bar (no stranded box)', async ({ page }) => {
+test('an empty group is not shown on the bar (no stranded box)', async ({ page }) => {
   await gotoApp(page);
   await ensureBuildMode(page);
 
@@ -129,20 +121,6 @@ test('an empty or all-tier-hidden group is not shown on the bar (no stranded box
   });
   await expect(page.locator('#tools-body .tb-group')).toHaveCount(0);
   await expect(page.locator('#tools-body .menu-pop')).toHaveCount(0);
-
-  // a group whose only tool is Pro-only disappears in Simple, returns in Pro
-  await page.evaluate(() => {
-    const a = window.__forgeApp;
-    a._toolbar.layout = [
-      { type: 'tool', id: 'rail-home' },
-      { type: 'group', gid: 'gp', label: 'Pro', glyph: '⋯', items: ['v-measure'] },
-    ];
-    a._renderToolbar();
-    a._setTier('simple');
-  });
-  await expect(page.locator('#tools-body .tb-group')).toHaveCount(0);
-  await page.evaluate(() => window.__forgeApp._setTier('pro'));
-  await expect(page.locator('#tools-body .tb-group')).toHaveCount(1);
 });
 
 test('an opened group is a compact icon grid, not a tall text list', async ({ page }) => {
@@ -161,27 +139,24 @@ test('an opened group is a compact icon grid, not a tall text list', async ({ pa
   expect(h).toBeLessThan(220);
 });
 
-test('Mode and Level segmented toggles switch state and highlight the active option', async ({ page }) => {
+test('the mode toggle is a single button that switches code/build (like edit/result)', async ({ page }) => {
   await gotoApp(page); // pro, build
   await ensureBuildMode(page);
 
-  // Level: a [Simple|Pro] segmented toggle — Pro active, tap Simple to switch
-  const tierPro = page.locator('[data-seg-tier="pro"]');
-  const tierSimple = page.locator('[data-seg-tier="simple"]');
-  await expect(tierPro).toBeVisible();
-  await expect(tierPro).toHaveClass(/active/);
-  await tierSimple.click();
-  await expect.poll(() => page.evaluate(() => window.__forgeApp.tier)).toBe('simple');
-  await expect(tierSimple).toHaveClass(/active/);
-  await expect(tierPro).not.toHaveClass(/active/);
-  await tierPro.click(); // back to Pro so the mode toggle is visible again
-  await expect.poll(() => page.evaluate(() => window.__forgeApp.tier)).toBe('pro');
-
-  // Mode: a [code|build] segmented toggle — build active, tap code to switch
-  const modeCode = page.locator('[data-seg-mode="code"]');
-  const modeBuild = page.locator('[data-seg-mode="build"]');
-  await expect(modeBuild).toHaveClass(/active/);
-  await modeCode.click();
+  const mode = page.locator('#mode-toggle');
+  await expect(mode).toBeVisible();
+  // one button: build → tap → code → tap → build, with the .on state tracking
+  await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('build');
+  await mode.click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('code');
-  await expect(modeCode).toHaveClass(/active/);
+  await expect(mode).toHaveClass(/on/);
+  await mode.click();
+  await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('build');
+  await expect(mode).not.toHaveClass(/on/);
+});
+
+test('Simple tier is gone — only Pro, no tier switch anywhere', async ({ page }) => {
+  await gotoApp(page);
+  expect(await page.evaluate(() => window.__forgeApp.tier)).toBe('pro');
+  await expect(page.locator('[data-seg-tier], #tier-switch, #tier-toggle')).toHaveCount(0);
 });

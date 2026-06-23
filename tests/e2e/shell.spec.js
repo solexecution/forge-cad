@@ -223,22 +223,4 @@ test('mode switch via the gear-menu [data-mode] tabs', async ({ page }) => {
   await page.waitForFunction(() => window.__forgeApp.mode === 'code', null, { timeout: 5000 });
 });
 
-test('tier switch via the gear-menu [data-tier] buttons toggles a pro-only control', async ({ page }) => {
-  await gotoApp(page); // pro
-  const cmdOpen = page.locator('#cmd-open');
-  await expect(cmdOpen).toBeVisible(); // visible in Pro
-
-  await openGearMenu(page);
-  await page.click('#gear-menu [data-tier="simple"]');
-  await page.waitForFunction(() => window.__forgeApp.tier === 'simple', null, { timeout: 5000 });
-  // Simple-only effect: the command palette button is hidden (CSS .tier-simple #cmd-open).
-  await expect(cmdOpen).toBeHidden();
-  await expect
-    .poll(() => page.evaluate(() => window.__forgeApp.root.classList.contains('tier-simple')))
-    .toBe(true);
-
-  await openGearMenu(page);
-  await page.click('#gear-menu [data-tier="pro"]');
-  await page.waitForFunction(() => window.__forgeApp.tier === 'pro', null, { timeout: 5000 });
-  await expect(cmdOpen).toBeVisible(); // restored in Pro
-});
+// (tier switching removed — the app is Pro-only now; see toolbar.spec.js)
