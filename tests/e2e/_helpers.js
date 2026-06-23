@@ -8,7 +8,7 @@
 //   - localStorage namespace   → randr.* (theme/layout/projects)
 //
 // State lives on window.__forgeApp:
-//   .mode 'code'|'build' · .tier 'pro' (Pro-only) · .viewMode 'edit'|'result'
+//   .mode 'code'|'build' · .viewMode 'edit'|'result'
 //   .buildTree.nodes[] (each: kind, op 'solid'|'hole', pos[3], rot[3], scale[3],
 //                       color, locked, hidden, group, groupMode, fields[])
 //   .selectedNodes[] · .selectedNode · .currentModel

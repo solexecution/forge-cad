@@ -157,8 +157,7 @@ test('the mode toggle is a single button that switches code/build (like edit/res
   await expect(mode).not.toHaveClass(/on/);
 });
 
-test('Simple tier is gone — only Pro, no tier switch anywhere', async ({ page }) => {
+test('the tier system is gone — no tier switch anywhere', async ({ page }) => {
   await gotoApp(page);
-  expect(await page.evaluate(() => window.__forgeApp.tier)).toBe('pro');
   await expect(page.locator('[data-seg-tier], #tier-switch, #tier-toggle')).toHaveCount(0);
 });

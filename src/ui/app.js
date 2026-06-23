@@ -16,6 +16,7 @@ import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isSh
 import { sourceToNodes } from './importBuild.js';
 import { shapeArt } from './shapeart.js';
 import { Toolbar, toolbarSeedHTML, toggleMenu, QUALITY_LEVELS } from './toolbar.js';
+import { esc } from './escape.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
 import * as Projects from './projects.js';
@@ -25,7 +26,6 @@ import * as Projects from './projects.js';
 // add (data-add primitive), tpl (data-tpl template), or id (special action);
 // `art` picks the picture (defaults to the add/tpl key). Categories keep their
 // data-cat values so gallery search keeps working.
-const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const _a = (add, label, art, title) => ({ add, label: label || add, art: art || add, title });
 const _t = (tpl, art, label) => ({ tpl, label: label || tpl, art });
 const ADD_GALLERY = [
@@ -58,13 +58,13 @@ const ADD_GALLERY = [
   ['import', 'Import', [{ id: 'modal-import', art: 'import', label: 'STL / OBJ / 3MF…' }]],
 ];
 function _addTile(it) {
-  const attr = it.add ? ` data-add="${it.add}"` : it.tpl ? ` data-tpl="${_esc(it.tpl)}"` : it.id ? ` id="${it.id}"` : '';
-  const title = it.title ? ` title="${_esc(it.title)}"` : '';
-  return `<button class="add-tile"${attr}${title}><span class="tile-art">${shapeArt(it.art)}</span><span class="tile-lab">${_esc(it.label)}</span></button>`;
+  const attr = it.add ? ` data-add="${it.add}"` : it.tpl ? ` data-tpl="${esc(it.tpl)}"` : it.id ? ` id="${it.id}"` : '';
+  const title = it.title ? ` title="${esc(it.title)}"` : '';
+  return `<button class="add-tile"${attr}${title}><span class="tile-art">${shapeArt(it.art)}</span><span class="tile-lab">${esc(it.label)}</span></button>`;
 }
 function addGalleryHTML() {
   return ADD_GALLERY.map(([cat, title, items]) =>
-    `<section class="cat" data-cat="${cat}"><h4>${_esc(title)}</h4><div class="cat-grid">${items.map(_addTile).join('')}</div></section>`,
+    `<section class="cat" data-cat="${cat}"><h4>${esc(title)}</h4><div class="cat-grid">${items.map(_addTile).join('')}</div></section>`,
   ).join('');
 }
 
@@ -313,7 +313,6 @@ export class App {
   constructor(root) {
     this.root = root;
     this.mode = 'code';            // 'code' | 'build'
-    this.tier = 'pro';             // Pro-only app — Simple/Maker tiers removed; a permanent invariant
     this._sketchMode = 'extrude';  // sketch tool: 'extrude' | 'revolve'
     this.source = STARTER;
     this.overrides = {};
@@ -1355,7 +1354,6 @@ export class App {
     this._cmdShown = items;
     this._cmdActive = 0;
     const list = this.root.querySelector('#cmd-list');
-    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
     if (!items.length) { list.innerHTML = '<div class="cmd-empty">No matching command</div>'; return; }
     list.innerHTML = items.map((cmd, i) => `
       <div class="cmd-item${i === 0 ? ' active' : ''}" data-i="${i}" role="option">
@@ -2821,7 +2819,6 @@ export class App {
         + (node.op === 'hole' ? ' is-hole' : '')
         + (node.hidden ? ' is-hidden' : '');
       row.dataset.node = idx;
-      const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
       const dims = node.fields.map((f) => {
         if (f.type === 'text') {
           return `<label class="bn-text">${f.label}<input type="text" value="${esc(f.value)}" data-field="${idx}:${f.key}" spellcheck="false"></label>`;
@@ -2982,7 +2979,6 @@ export class App {
       imported: '⬚', extrusion: '✎', revolution: '◓',
     };
     const iconOf = (n) => KIND_ICON[n.kind] || '◆';
-    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     const nameOf = (n) => n.kind === 'imported' ? (n.meshName || 'mesh')
       : n.kind === 'extrusion' ? 'sketch' : n.kind === 'revolution' ? 'lathe'
       : (KIND_LABEL[n.kind] || n.kind);

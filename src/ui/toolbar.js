@@ -15,7 +15,7 @@
 //   this.toolbar.init({ mode, curveQuality })
 //   this.toolbar.syncState({ mode, curveQuality })  // reflect app state on buttons
 
-const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+import { esc } from './escape.js';
 
 // Curve-smoothness levels for the quality button — it cycles through these and
 // shows the current fill level as its glyph. v is the segment count for round shapes.
@@ -63,7 +63,7 @@ const TOOLBAR_DEFAULT = [
 
 // Bump when the default layout gains a tool, and add a matching step in
 // migrateToolbar so older saved layouts surface it. Pre-versioned blobs read as v1.
-const TOOLBAR_VERSION = 3;
+export const TOOLBAR_VERSION = 3;
 const KNOWN_IDS = new Set(TOOLBAR_TOOLS.map((t) => t.id));
 
 function defaultToolbarState() {
@@ -75,7 +75,7 @@ function defaultToolbarState() {
 // exists, then run the version steps that surface tools introduced after the
 // blob was saved. New default tool? Bump TOOLBAR_VERSION and add one step here —
 // don't scatter fresh `if (!layout.some(...))` checks back into init().
-function migrateToolbar(saved) {
+export function migrateToolbar(saved) {
   if (!saved || typeof saved !== 'object' || !Array.isArray(saved.layout) || !saved.layout.length) {
     return defaultToolbarState();
   }
@@ -111,7 +111,7 @@ export function toggleMenu(root, menu) {
 // App to wire (by id) and for render() to place.
 export function toolbarSeedHTML() {
   return TOOLBAR_TOOLS
-    .map((t) => `<button class="rail-btn${t.on ? ' on' : ''}" id="${t.id}" title="${_esc(t.title || t.label)}">${t.glyph}</button>`)
+    .map((t) => `<button class="rail-btn${t.on ? ' on' : ''}" id="${t.id}" title="${esc(t.title || t.label)}">${t.glyph}</button>`)
     .join('\n          ');
 }
 
@@ -389,22 +389,22 @@ export class Toolbar {
     const groups = L.filter((e) => e.type === 'group');
     const sel = (id, current) => {
       const o = [`<option value="bar"${current === 'bar' ? ' selected' : ''}>Button</option>`];
-      for (const g of groups) o.push(`<option value="g:${g.gid}"${current === 'g:' + g.gid ? ' selected' : ''}>In “${_esc(g.label)}”</option>`);
+      for (const g of groups) o.push(`<option value="g:${g.gid}"${current === 'g:' + g.gid ? ' selected' : ''}>In “${esc(g.label)}”</option>`);
       o.push(`<option value="off"${current === 'off' ? ' selected' : ''}>Off</option>`);
       return `<select class="tbm-place" data-id="${id}">${o.join('')}</select>`;
     };
     const row = (id, current) => {
       const t = this._tbTool(id) || { glyph: '?', label: id };
-      return `<div class="tbm-row" data-id="${id}"><span class="tbm-ic">${t.glyph}</span><span class="tbm-lab">${_esc(t.label)}</span>${sel(id, current)}</div>`;
+      return `<div class="tbm-row" data-id="${id}"><span class="tbm-ic">${t.glyph}</span><span class="tbm-lab">${esc(t.label)}</span>${sel(id, current)}</div>`;
     };
     let h = '<p class="tbm-hint">Drag the toolbar by its ⠿ grip to move it (it snaps to a side). Set each tool as a button, put it in a menu group, or turn it off.</p>';
     h += '<div class="tbm-sec">On the bar</div><div class="tbm-list">';
     L.forEach((e, i) => {
       const mv = `<span class="tbm-mv"><button type="button" data-mv="up" data-i="${i}" title="Move up">↑</button><button type="button" data-mv="dn" data-i="${i}" title="Move down">↓</button></span>`;
       if (e.type === 'group') {
-        h += `<div class="tbm-grp"><div class="tbm-grphead"><span class="tbm-gic">${e.glyph || '❏'}</span><input class="tbm-gname" data-gi="${i}" value="${_esc(e.label)}" maxlength="20" spellcheck="false">${mv}<button type="button" class="tbm-gdel" data-gi="${i}" title="Delete group">✕</button></div><div class="tbm-grpitems">`;
+        h += `<div class="tbm-grp"><div class="tbm-grphead"><span class="tbm-gic">${e.glyph || '❏'}</span><input class="tbm-gname" data-gi="${i}" value="${esc(e.label)}" maxlength="20" spellcheck="false">${mv}<button type="button" class="tbm-gdel" data-gi="${i}" title="Delete group">✕</button></div><div class="tbm-grpitems">`;
         (e.items || []).forEach((id) => { h += row(id, 'g:' + e.gid); });
-        if (!(e.items || []).length) h += `<div class="tbm-empty">empty — assign tools to “${_esc(e.label)}” below</div>`;
+        if (!(e.items || []).length) h += `<div class="tbm-empty">empty — assign tools to “${esc(e.label)}” below</div>`;
         h += '</div></div>';
       } else {
         h += `<div class="tbm-toprow">${row(e.id, 'bar')}${mv}</div>`;

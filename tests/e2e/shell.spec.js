@@ -1,5 +1,5 @@
 // E2E coverage for the R&R (randr) CAD app shell: boot health, command palette,
-// undo/redo, the view/display toggles, and the user-facing mode + tier switches.
+// undo/redo, the view/display toggles, and the user-facing mode switch.
 //
 // Selectors verified against src/ui/app.js:
 //   - boot ready          → #boot.gone (helper waits on it)

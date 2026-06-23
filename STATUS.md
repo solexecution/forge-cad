@@ -1,10 +1,10 @@
 # R&R — Project Status
 
-_Snapshot for resuming work. Last updated 2026-06-20._
+_Snapshot for resuming work. Last updated 2026-06-23 — the Simple/Maker/Pro tier system was removed (the app is Pro-only) and the left toolbar is now floating + customizable. Some UI sections below predate those changes and may lag._
 
-> **R&R** is an offline-first, tablet-first, Tinkercad-style **parametric CAD for 3D printing** (Bambu A1 mini target). Watertight **manifold-3d** (WASM) kernel + **three.js** + **Vite**. Goal: go *beyond* Tinkercad — no-limits design for makers, with a Simple→Pro spectrum.
+> **R&R** is an offline-first, tablet-first, Tinkercad-style **parametric CAD for 3D printing** (Bambu A1 mini target). Watertight **manifold-3d** (WASM) kernel + **three.js** + **Vite**. Goal: go *beyond* Tinkercad — no-limits design for makers.
 >
-> - **Display name:** "R&R". **Everything internal stays `randr`** — repo `solexecution/randr`, live <https://solexecution.github.io/randr/>, standalone `RandR.html`, and **localStorage keys `randr.*`** (don't rename — would orphan saved projects/settings/tier).
+> - **Display name:** "R&R". **Everything internal stays `randr`** — repo `solexecution/randr`, live <https://solexecution.github.io/randr/>, standalone `RandR.html`, and **localStorage keys `randr.*`** (don't rename — would orphan saved projects/settings).
 > - **Local folder:** `C:\Users\MarosKuzmiak\Desktop\3d\forge-cad` (folder kept as `forge-cad`; internal ids `ForgeError`, `window.__forgeApp/__forgeExport/__dbg` unchanged).
 
 ---
@@ -35,7 +35,9 @@ Deploy = **push to `main`** → GitHub Pages Action builds + publishes. PWA (ser
 | `src/kernel/manifold.js` | Kernel wrapper: all primitives, booleans, `extrude`/`revolve`, fillet/chamfer (minkowski), `bisect`, curve quality, STL/OBJ/3MF import. |
 | `src/kernel/export.js` | STL / OBJ / 3MF export (+ per-part colored 3MF for AMS). |
 | `src/lang/` | The "Forge" code language: `tokenizer.js` → `parser.js` → `evaluator.js`. |
-| `src/ui/app.js` | **Main controller (large).** Render/markup, build-tree editing, tiers, command palette, modals, print-prep, projects, undo, toasts, sketch UI. |
+| `src/ui/app.js` | **Main controller (large).** Render/markup, build-tree editing, command palette, modals, print-prep, projects, undo, toasts, sketch UI. |
+| `src/ui/toolbar.js` | Floating, dockable, customizable left tool strip: `TOOLBAR_TOOLS` registry, seed markup, versioned layout persistence (`migrateToolbar`), render, ✎ customise modal. |
+| `src/ui/escape.js` | Canonical HTML-escaper (`esc`) shared by the markup-building modules. |
 | `src/ui/viewport.js` | three.js viewport: custom orbit/touch controls, picking/drag, gizmo, edit meshes, measure, overhang, layer preview, build-volume box, **nav widget (cube+arrows+home+axis)**, **sketch interaction**. |
 | `src/ui/buildtree.js` | Build-node DEFS, `buildTreeToSource`, modifiers (clearance/hollow/fillet), metric sizes, colored parts. |
 | `src/ui/importBuild.js` | `sourceToNodes` — code → build-tree importer (round-trips). |
@@ -63,17 +65,17 @@ Deploy = **push to `main`** → GitHub Pages Action builds + publishes. PWA (ser
 - Multi-select; group/ungroup; per-part color (swatch + hex); lock/hide; collapse; duplicate (clones all props incl. sketch points); change-type; delete.
 - **Undo/redo** (selection-preserving) + autosave.
 
-**Experience tiers** (this session)
-- **Simple / Maker / Pro** progressive disclosure via one `.tier-*` class; first-run chooser; persisted in `randr.tier`; switch-safety (code-only design falling back to Maker). Pro = everything; Maker = full builder + code, minus measure/layers; Simple = pick-and-size (no code/booleans/coords; friendly Add gallery; simplified cards).
+**Experience level**
+- **Pro-only** — every tool is available to everyone. An earlier Simple / Maker / Pro tier system (progressive disclosure via a `.tier-*` class + first-run chooser + `randr.tier`) was **removed**; no tier UI, storage key, or branching remains.
 
 **Navigation / UI** (this session)
-- **Command palette** (Ctrl+K, ⌕): 63 commands, fuzzy filter, keyboard nav (Maker/Pro).
+- **Command palette** (Ctrl+K, ⌕): fuzzy filter + keyboard nav over every tool/op.
 - **Navigation widget** (top-right): FreeCAD-style **ViewCube** (face/edge/corner snap + hover highlight) + **rotate-arrow ring** + **Home** + **Blender-style axis gizmo** (X/Y/Z balls).
 - **Add modal:** search box + collapsible categories + wrapped labels + dense 6-col grid.
 - Tap-to-dismiss toasts (length-scaled duration); context-menu submenus open on a single tap.
 
 **Tablet-first UI overhaul** (latest session)
-- **Consolidated top bar:** logo · project name (**click to rename**) · **☰ app menu** (Project / **Templates▸** / **Export▸** fly-out submenus) · **⚙ gear** (mode · level · view) · **▤ parts toggle** · **+ add** · ⌕ ↶ ↷ ⤢ — all left-aligned for max canvas. (Retired the old separate File/Templates/Export bar menus.)
+- **Consolidated top bar:** logo · project name (**click to rename**) · **☰ app menu** (Project / **Templates▸** / **Export▸** fly-out submenus) · **▤ parts toggle** · **+ add** · ⌕ ↶ ↷ ⤢ — all left-aligned for max canvas. (The ⚙ gear menu was later retired; mode / curve-quality / code-panel are now buttons on the floating left toolbar.)
 - **Parts panel = collapsible sidebar** (`#part-card`): docks **left/right** (drag header or **▣**), collapses off its edge via the top-bar **▤** or a **canvas tap**, reopen from **▤**; persists in `randr.cardDock` `{mode,collapsed}`. Compact rows: select · colour · name · solid/hole · lock · hide · duplicate · remove · **G** group badge. (Replaced the inline per-row editor.)
 - **Per-part editor = standalone modal** (`#part-modal`): opens as a popover that **grows from the tapped row**; holds the full editor (dims / pos / rot / colour / fit / fillet / size), per-part actions, the **align/group/array/place/flip tools** (moved here from the retired floating ⛭ dock), and a size **metric**. Multi-select shows the tools with an "N selected" summary.
 - **Readout** moved to the **top-right corner** with the status dot folded into its header; **nav-cube fixed just below it**.
