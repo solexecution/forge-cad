@@ -2930,6 +2930,8 @@ export class App {
         e.target.value = '';
       });
     }
+    // Import… in the ☰ menu opens the same file picker (sits next to Export).
+    this.root.querySelector('#menu-import')?.addEventListener('click', () => fileInput?.click());
     this._renderBuildTree();
   }
 
@@ -3491,6 +3493,7 @@ export class App {
                   <button id="btn-obj">OBJ — mesh</button>
                 </div>
               </div>
+              <button id="menu-import">Import…</button>
               <div class="menu-sep"></div>
               <button id="help-btn">Code help</button>
             </div>

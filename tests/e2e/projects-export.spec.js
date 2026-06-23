@@ -332,6 +332,17 @@ test.describe('edit / result view', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([]);
     expect(dialogs).toEqual([]);
   });
+
+  test('Import… in the ☰ menu opens the file picker (next to Export)', async ({ page }) => {
+    await gotoApp(page);
+    await openAppMenu(page);
+    await expect(page.locator('#menu-import')).toBeVisible();
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('#menu-import'),
+    ]);
+    expect(chooser).toBeTruthy();
+  });
 });
 
 // --- shared local helper ----------------------------------------------------
