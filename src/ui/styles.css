@@ -134,11 +134,16 @@ body {
 .menu.tb-group.open .menu-pop { display: grid; grid-template-columns: repeat(3, 38px); }
 .tb-group .menu-pop { min-width: 0; gap: 5px; padding: 6px; }
 .tb-group .menu-pop .rail-btn { width: 38px; height: 38px; padding: 0; display: grid; place-items: center; font-size: 16px; color: var(--ink); background: var(--btn-bg); border: 1px solid var(--line); border-radius: 9px; }
-.tb-group .menu-pop .rail-btn.tb-state { grid-column: 1 / -1; width: auto; padding: 0 8px; font-size: 11px; justify-self: start; } /* text toggle gets its own row */
+.tb-group .menu-pop .tb-seg { grid-column: 1 / -1; } /* a segmented toggle spans its own row */
 .tb-group .menu-pop .rail-btn:hover { border-color: var(--cyan); color: var(--cyan); }
 .tb-group .menu-pop .rail-btn.on { background: var(--surface-2); border-color: var(--cyan); color: var(--cyan); }
-/* state-toggle buttons (Code/Build, Simple/Pro) show the current value as text */
-.rail-btn.tb-state { width: auto; min-width: 38px; padding: 0 9px; font-size: 11px; font-family: var(--mono); letter-spacing: .02em; }
+/* Code/Build and Simple/Pro segmented toggles on the toolbar — own class so the
+   Simple-tier `.tabs { display:none }` rule doesn't also hide the tier switch */
+.tb-seg { display: flex; gap: 3px; width: auto; padding: 3px; background: var(--inset-bg); border: 1px solid var(--line); border-radius: 8px; }
+.tb-seg button { font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--ink-dim); background: none; border: 0; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+.tb-seg button:hover { color: var(--ink); }
+.tb-seg button.active { background: var(--surface-2); color: var(--cyan); }
+.tier-simple #mode-toggle { display: none; } /* no code mode in Simple → hide the mode toggle */
 /* customize-toolbar modal */
 .toolbar-panel { width: min(460px, 94vw); max-height: 84vh; }
 #toolbar-edit-body { overflow: auto; }

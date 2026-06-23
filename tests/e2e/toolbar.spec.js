@@ -161,26 +161,27 @@ test('an opened group is a compact icon grid, not a tall text list', async ({ pa
   expect(h).toBeLessThan(220);
 });
 
-test('Mode and Level toggle buttons flip state and update their label', async ({ page }) => {
+test('Mode and Level segmented toggles switch state and highlight the active option', async ({ page }) => {
   await gotoApp(page); // pro, build
   await ensureBuildMode(page);
 
-  const tier = page.locator('#tier-toggle');
-  const mode = page.locator('#mode-toggle');
-  await expect(tier).toBeVisible();
-  await expect(mode).toBeVisible();
-
-  // Level: Pro -> Simple -> Pro, label tracks the state
-  await expect(tier).toHaveText('Pro');
-  await tier.click();
+  // Level: a [Simple|Pro] segmented toggle — Pro active, tap Simple to switch
+  const tierPro = page.locator('[data-seg-tier="pro"]');
+  const tierSimple = page.locator('[data-seg-tier="simple"]');
+  await expect(tierPro).toBeVisible();
+  await expect(tierPro).toHaveClass(/active/);
+  await tierSimple.click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.tier)).toBe('simple');
-  await expect(tier).toHaveText('Simple');
-  await tier.click();
+  await expect(tierSimple).toHaveClass(/active/);
+  await expect(tierPro).not.toHaveClass(/active/);
+  await tierPro.click(); // back to Pro so the mode toggle is visible again
   await expect.poll(() => page.evaluate(() => window.__forgeApp.tier)).toBe('pro');
 
-  // Mode: build -> code
-  await expect(mode).toHaveText('build');
-  await mode.click();
+  // Mode: a [code|build] segmented toggle — build active, tap code to switch
+  const modeCode = page.locator('[data-seg-mode="code"]');
+  const modeBuild = page.locator('[data-seg-mode="build"]');
+  await expect(modeBuild).toHaveClass(/active/);
+  await modeCode.click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('code');
-  await expect(mode).toHaveText('code');
+  await expect(modeCode).toHaveClass(/active/);
 });

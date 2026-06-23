@@ -473,8 +473,8 @@ export class App {
     });
 
     this.root.querySelector('#tools-edit')?.addEventListener('click', () => this._openToolbarModal());
-    this.root.querySelector('#mode-toggle')?.addEventListener('click', () => this._switchMode(this.mode === 'code' ? 'build' : 'code'));
-    this.root.querySelector('#tier-toggle')?.addEventListener('click', () => this._setTier(this.tier === 'simple' ? 'pro' : 'simple'));
+    this.root.querySelectorAll('[data-seg-mode]').forEach((b) => b.addEventListener('click', () => this._switchMode(b.dataset.segMode)));
+    this.root.querySelectorAll('[data-seg-tier]').forEach((b) => b.addEventListener('click', () => this._setTier(b.dataset.segTier)));
     this._syncStateToggles();
 
     // customise modal: close / reset / backdrop + delegated edit controls
@@ -564,10 +564,8 @@ export class App {
   // Code/Build and Simple/Pro toggle buttons show the current value and flip on
   // tap. Kept in sync whenever mode or tier changes (and after a re-render).
   _syncStateToggles() {
-    const m = this.root.querySelector('#mode-toggle');
-    if (m) { m.textContent = this.mode === 'code' ? 'code' : 'build'; m.title = `Editing mode: ${this.mode} — tap to switch`; m.classList.toggle('on', this.mode === 'code'); }
-    const t = this.root.querySelector('#tier-toggle');
-    if (t) { t.textContent = this.tier === 'pro' ? 'Pro' : 'Simple'; t.title = `Level: ${this.tier} — tap to switch`; t.classList.toggle('on', this.tier === 'pro'); }
+    this.root.querySelectorAll('[data-seg-mode]').forEach((b) => b.classList.toggle('active', b.dataset.segMode === this.mode));
+    this.root.querySelectorAll('[data-seg-tier]').forEach((b) => b.classList.toggle('active', b.dataset.segTier === this.tier));
   }
 
   // --- toolbar customisation (the ✎ modal) ----------------------------------
@@ -3557,8 +3555,14 @@ export class App {
               <button class="rail-btn prep" id="v-orient" title="Auto-orient">⤓</button>
               <button class="rail-btn prep" id="v-fit-plate" title="Fit to plate">⤡</button>
               <button class="rail-btn prep" id="v-cut" title="Cut in half">✂</button>
-              <button class="rail-btn tb-state" id="mode-toggle" title="Editing mode">build</button>
-              <button class="rail-btn tb-state" id="tier-toggle" title="Experience level">Pro</button>
+              <div class="tb-seg" id="mode-toggle" role="group" aria-label="Editing mode">
+                <button type="button" data-seg-mode="code">code</button>
+                <button type="button" data-seg-mode="build">build</button>
+              </div>
+              <div class="tb-seg" id="tier-toggle" role="group" aria-label="Experience level">
+                <button type="button" data-seg-tier="simple">Simple</button>
+                <button type="button" data-seg-tier="pro">Pro</button>
+              </div>
             </div>
           </div>
           <div class="menu" id="gear-menu">
