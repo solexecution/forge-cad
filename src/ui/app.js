@@ -518,6 +518,12 @@ export class App {
     const place = (id, parent) => { const n = this._toolNodes[id]; if (n) parent.appendChild(n); };
     for (const entry of this._toolbar.layout || []) {
       if (entry.type === 'group') {
+        // Skip a group that has no tools visible in the current tier — otherwise
+        // opening it shows a stranded empty menu box.
+        const vis = (entry.items || []).filter(
+          (id) => this._toolNodes[id] && !(this._tbTool(id)?.pro && this.tier === 'simple'),
+        );
+        if (!vis.length) continue;
         const menu = document.createElement('div');
         menu.className = 'menu tb-group';
         const btn = document.createElement('button');
@@ -1565,6 +1571,7 @@ export class App {
     this.root.querySelectorAll('#tier-switch [data-tier]').forEach((b) =>
       b.classList.toggle('on', b.dataset.tier === tier));
     this._resetViewsForTier(tier);
+    if (this._toolbar) this._renderToolbar(); // re-hide any group whose tools are all hidden in this tier
     if (tier === 'simple' && this.viewport && !this.viewport.snap) {
       this.viewport.setSnap(true);
       this.root.querySelector('#v-snap')?.classList.add('on');

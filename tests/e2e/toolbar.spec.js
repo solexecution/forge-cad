@@ -113,3 +113,34 @@ test('tier gating rides along with a relocated tool', async ({ page }) => {
   await page.evaluate(() => window.__forgeApp._setTier('pro'));
   await expect(vm).toBeVisible(); // shows again in Pro
 });
+
+test('an empty or all-tier-hidden group is not shown on the bar (no stranded box)', async ({ page }) => {
+  await gotoApp(page);
+  await ensureBuildMode(page);
+
+  // an empty group must not render a button or a stray menu-pop
+  await page.evaluate(() => {
+    const a = window.__forgeApp;
+    a._toolbar.layout = [
+      { type: 'tool', id: 'rail-home' },
+      { type: 'group', gid: 'gx', label: 'More', glyph: '⋯', items: [] },
+    ];
+    a._renderToolbar();
+  });
+  await expect(page.locator('#tools-body .tb-group')).toHaveCount(0);
+  await expect(page.locator('#tools-body .menu-pop')).toHaveCount(0);
+
+  // a group whose only tool is Pro-only disappears in Simple, returns in Pro
+  await page.evaluate(() => {
+    const a = window.__forgeApp;
+    a._toolbar.layout = [
+      { type: 'tool', id: 'rail-home' },
+      { type: 'group', gid: 'gp', label: 'Pro', glyph: '⋯', items: ['v-measure'] },
+    ];
+    a._renderToolbar();
+    a._setTier('simple');
+  });
+  await expect(page.locator('#tools-body .tb-group')).toHaveCount(0);
+  await page.evaluate(() => window.__forgeApp._setTier('pro'));
+  await expect(page.locator('#tools-body .tb-group')).toHaveCount(1);
+});

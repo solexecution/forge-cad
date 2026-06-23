@@ -130,6 +130,8 @@ body {
 .toolbar.dock-right #tools-more .menu-pop,
 .toolbar.dock-right #gear-menu .menu-pop,
 .toolbar.dock-right .tb-group .menu-pop { left: auto; right: calc(100% + 6px); }
+.tb-group .menu-pop { min-width: 0; } /* size to the tools, not a fixed-width text menu */
+.tb-group .menu-pop button { white-space: nowrap; }
 /* customize-toolbar modal */
 .toolbar-panel { width: min(460px, 94vw); max-height: 84vh; }
 #toolbar-edit-body { overflow: auto; }
