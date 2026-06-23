@@ -330,6 +330,8 @@ const TOOLBAR_TOOLS = [
   { id: 'v-orient', glyph: '⤓', label: 'Auto-orient', cat: 'Inspect & print', pro: true },
   { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', cat: 'Inspect & print', pro: true },
   { id: 'v-cut', glyph: '✂', label: 'Cut in half', cat: 'Inspect & print', pro: true },
+  { id: 'mode-toggle', glyph: '⌥', label: 'Mode · code / build', cat: 'Mode', pro: true },
+  { id: 'tier-toggle', glyph: '◑', label: 'Level · Simple / Pro', cat: 'Mode' },
   { id: 'gear-menu', glyph: '⚙', label: 'Settings', cat: 'Settings', opener: true },
 ];
 const TOOLBAR_DEFAULT = [
@@ -339,6 +341,8 @@ const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'v-snap' },
   { type: 'tool', id: 'v-theme' },
   { type: 'group', gid: 'g-more', label: 'More', glyph: '⋯', items: ['v-mmgrid', 'v-wire', 'v-measure', 'v-layers', 'v-overhang', 'v-orient', 'v-fit-plate', 'v-cut'] },
+  { type: 'tool', id: 'mode-toggle' },
+  { type: 'tool', id: 'tier-toggle' },
   { type: 'opener', id: 'gear-menu' },
 ];
 
@@ -432,6 +436,11 @@ export class App {
     this._toolbar.layout = Array.isArray(saved?.layout) && saved.layout.length
       ? saved.layout
       : JSON.parse(JSON.stringify(TOOLBAR_DEFAULT));
+    // migration: surface newly-added tools (the state toggles) on older saved layouts
+    for (const id of ['mode-toggle', 'tier-toggle']) {
+      const has = this._toolbar.layout.some((e) => (e.type === 'group' ? (e.items || []).includes(id) : e.id === id));
+      if (!has && this._toolNodes[id]) this._toolbar.layout.push({ type: 'tool', id });
+    }
     this._renderToolbar();
 
     let sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
@@ -464,6 +473,9 @@ export class App {
     });
 
     this.root.querySelector('#tools-edit')?.addEventListener('click', () => this._openToolbarModal());
+    this.root.querySelector('#mode-toggle')?.addEventListener('click', () => this._switchMode(this.mode === 'code' ? 'build' : 'code'));
+    this.root.querySelector('#tier-toggle')?.addEventListener('click', () => this._setTier(this.tier === 'simple' ? 'pro' : 'simple'));
+    this._syncStateToggles();
 
     // customise modal: close / reset / backdrop + delegated edit controls
     this.root.querySelector('#toolbar-modal-close')?.addEventListener('click', () => this._closeModal('#toolbar-modal'));
@@ -546,6 +558,16 @@ export class App {
         place(entry.id, body); // 'tool' or 'opener'
       }
     }
+    this._syncStateToggles();
+  }
+
+  // Code/Build and Simple/Pro toggle buttons show the current value and flip on
+  // tap. Kept in sync whenever mode or tier changes (and after a re-render).
+  _syncStateToggles() {
+    const m = this.root.querySelector('#mode-toggle');
+    if (m) { m.textContent = this.mode === 'code' ? 'code' : 'build'; m.title = `Editing mode: ${this.mode} — tap to switch`; m.classList.toggle('on', this.mode === 'code'); }
+    const t = this.root.querySelector('#tier-toggle');
+    if (t) { t.textContent = this.tier === 'pro' ? 'Pro' : 'Simple'; t.title = `Level: ${this.tier} — tap to switch`; t.classList.toggle('on', this.tier === 'pro'); }
   }
 
   // --- toolbar customisation (the ✎ modal) ----------------------------------
@@ -1536,6 +1558,7 @@ export class App {
     if (this.mode === 'build') this._renderBuildTree();
     this.recompile(true);
     this._pushHistory();
+    this._syncStateToggles?.();
   }
 
   // --- experience level (Simple / Maker / Pro) ------------------------------
@@ -1572,6 +1595,7 @@ export class App {
       b.classList.toggle('on', b.dataset.tier === tier));
     this._resetViewsForTier(tier);
     if (this._toolbar) this._renderToolbar(); // re-hide any group whose tools are all hidden in this tier
+    this._syncStateToggles?.();
     if (tier === 'simple' && this.viewport && !this.viewport.snap) {
       this.viewport.setSnap(true);
       this.root.querySelector('#v-snap')?.classList.add('on');
@@ -3533,6 +3557,8 @@ export class App {
               <button class="rail-btn prep" id="v-orient" title="Auto-orient">⤓</button>
               <button class="rail-btn prep" id="v-fit-plate" title="Fit to plate">⤡</button>
               <button class="rail-btn prep" id="v-cut" title="Cut in half">✂</button>
+              <button class="rail-btn tb-state" id="mode-toggle" title="Editing mode">build</button>
+              <button class="rail-btn tb-state" id="tier-toggle" title="Experience level">Pro</button>
             </div>
           </div>
           <div class="menu" id="gear-menu">

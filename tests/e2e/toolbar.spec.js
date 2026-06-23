@@ -160,3 +160,27 @@ test('an opened group is a compact icon grid, not a tall text list', async ({ pa
   const h = await pop.evaluate((el) => el.getBoundingClientRect().height);
   expect(h).toBeLessThan(220);
 });
+
+test('Mode and Level toggle buttons flip state and update their label', async ({ page }) => {
+  await gotoApp(page); // pro, build
+  await ensureBuildMode(page);
+
+  const tier = page.locator('#tier-toggle');
+  const mode = page.locator('#mode-toggle');
+  await expect(tier).toBeVisible();
+  await expect(mode).toBeVisible();
+
+  // Level: Pro -> Simple -> Pro, label tracks the state
+  await expect(tier).toHaveText('Pro');
+  await tier.click();
+  await expect.poll(() => page.evaluate(() => window.__forgeApp.tier)).toBe('simple');
+  await expect(tier).toHaveText('Simple');
+  await tier.click();
+  await expect.poll(() => page.evaluate(() => window.__forgeApp.tier)).toBe('pro');
+
+  // Mode: build -> code
+  await expect(mode).toHaveText('build');
+  await mode.click();
+  await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('code');
+  await expect(mode).toHaveText('code');
+});
