@@ -40,7 +40,9 @@ test('toolbar renders from layout, groups open, relocated tools still work', asy
   for (const id of ['rail-home', 'v-grid', 'v-snap', 'v-theme']) {
     await expect(page.locator(`#tools-body > #${id}`)).toHaveCount(1); // top-level buttons
   }
-  await expect(page.locator('#tools-body > #gear-menu')).toHaveCount(1); // Settings opener intact
+  // the ⚙ menu's controls are now top-level buttons (the gear dropdown is gone)
+  await expect(page.locator('#tools-body > #v-quality')).toHaveCount(1);
+  await expect(page.locator('#tools-body > #panel-toggle')).toHaveCount(1);
 
   const group = page.locator('#tools-body .tb-group');
   await expect(group).toHaveCount(1); // default "More" group

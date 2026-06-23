@@ -397,19 +397,19 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 
 /* left drawer — a collapsible blade that overlays the full-bleed canvas */
 .panel {
-  position: absolute; top: 46px; left: var(--rail-w); bottom: 0; z-index: 18;
+  position: absolute; top: 46px; left: auto; right: 0; bottom: 0; z-index: 18;
   width: var(--panel-w, 320px); max-width: 92vw;
   background: var(--panel-bg); backdrop-filter: blur(10px);
-  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line);
   overflow-y: auto; overscroll-behavior: contain;
   transition: transform .22s ease;
 }
-.panel.collapsed { transform: translateX(-101%); }
+.panel.collapsed { transform: translateX(101%); }
 
-/* drag handle on the panel's right edge to resize it */
+/* drag handle on the panel's inner (left) edge to resize it */
 #panel-resize {
-  position: absolute; top: 46px; bottom: 0; left: calc(var(--rail-w) + var(--panel-w, 320px)); z-index: 19;
-  width: 8px; margin-left: -4px; cursor: ew-resize; touch-action: none;
+  position: absolute; top: 46px; bottom: 0; right: var(--panel-w, 320px); z-index: 19;
+  width: 8px; margin-right: -4px; cursor: ew-resize; touch-action: none;
 }
 #panel-resize::after {
   content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent;

@@ -316,6 +316,14 @@ const TIER_KEY = 'randr.tier'; // saved experience level: 'simple' | 'maker' | '
 // .menu container (Settings) moved intact. Used to build the bar and the
 // customise panel. `pro` tools are CSS-hidden in Simple tier — the class rides
 // along with the moved node, so gating keeps working automatically.
+// Curve-smoothness levels for the quality button — it cycles through these and
+// shows the current fill level as its glyph. v is the segment count for round shapes.
+const QUALITY_LEVELS = [
+  { v: 24,  name: 'Draft',    glyph: '◔' },
+  { v: 48,  name: 'Standard', glyph: '◑' },
+  { v: 64,  name: 'Smooth',   glyph: '◕' },
+  { v: 128, name: 'Ultra',    glyph: '●' },
+];
 const TOOLBAR_TOOLS = [
   { id: 'rail-home', glyph: '⌂', label: 'Home', cat: 'View' },
   { id: 'view-mode-toggle', glyph: '◧', label: 'Edit / Result', cat: 'View', pro: true },
@@ -331,7 +339,8 @@ const TOOLBAR_TOOLS = [
   { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', cat: 'Inspect & print', pro: true },
   { id: 'v-cut', glyph: '✂', label: 'Cut in half', cat: 'Inspect & print', pro: true },
   { id: 'mode-toggle', glyph: '⬓', label: 'Mode · code / build', cat: 'Mode' },
-  { id: 'gear-menu', glyph: '⚙', label: 'Settings', cat: 'Settings', opener: true },
+  { id: 'v-quality', glyph: '◕', label: 'Curve quality', cat: 'View' },
+  { id: 'panel-toggle', glyph: '⌨', label: 'Code panel', cat: 'Mode' },
 ];
 const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'rail-home' },
@@ -341,7 +350,8 @@ const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'v-theme' },
   { type: 'group', gid: 'g-more', label: 'More', glyph: '⋯', items: ['v-mmgrid', 'v-wire', 'v-measure', 'v-layers', 'v-overhang', 'v-orient', 'v-fit-plate', 'v-cut'] },
   { type: 'tool', id: 'mode-toggle' },
-  { type: 'opener', id: 'gear-menu' },
+  { type: 'tool', id: 'v-quality' },
+  { type: 'tool', id: 'panel-toggle' },
 ];
 
 export class App {
@@ -357,6 +367,7 @@ export class App {
     this.printRot = [0, 0, 0]; // print orientation (deg) wrapped around the model at compile
     this.printScale = 1; // uniform scale-to-fit wrapped around the model at compile (1 = none)
     this.printCut = 0; // >0 bisects the model (gap mm) into two repacked halves at compile
+    this.curveQuality = 64; // segment count for round primitives (Smooth) — see QUALITY_LEVELS
     this.buildTree = new BuildTree();
     this.selectedNode = -1;
     this.selectedNodes = [];
@@ -441,6 +452,13 @@ export class App {
     // migration: surface the mode toggle on older saved layouts
     if (!this._toolbar.layout.some((e) => (e.type === 'group' ? (e.items || []).includes('mode-toggle') : e.id === 'mode-toggle')) && this._toolNodes['mode-toggle']) {
       this._toolbar.layout.push({ type: 'tool', id: 'mode-toggle' });
+    }
+    // migration: the ⚙ menu's controls are now plain buttons — surface them on
+    // older saved layouts (the gear-menu opener is auto-pruned above as a non-tool)
+    for (const _id of ['v-quality', 'panel-toggle']) {
+      if (this._toolNodes[_id] && !this._toolbar.layout.some((e) => (e.type === 'group' ? (e.items || []).includes(_id) : e.id === _id))) {
+        this._toolbar.layout.push({ type: 'tool', id: _id });
+      }
     }
     this._renderToolbar();
 
@@ -566,11 +584,36 @@ export class App {
   // Reflect code/build on the single mode toggle, mirroring the edit/result button.
   _syncStateToggles() {
     const m = this.root.querySelector('#mode-toggle');
-    if (!m) return;
-    const code = this.mode === 'code';
-    m.classList.toggle('on', code);
-    m.textContent = code ? '⬒' : '⬓';
-    m.title = code ? 'Code mode — tap for build' : 'Build mode — tap for code';
+    if (m) {
+      const code = this.mode === 'code';
+      m.classList.toggle('on', code);
+      m.textContent = code ? '⬒' : '⬓';
+      m.title = code ? 'Code mode — tap for build' : 'Build mode — tap for code';
+    }
+    const p = this.root.querySelector('#panel-toggle');
+    if (p) {
+      const panel = this.root.querySelector('#panel');
+      p.classList.toggle('on', !!panel && !panel.classList.contains('collapsed'));
+      p.title = 'Code panel — show / hide';
+    }
+    this._syncQualityBtn();
+  }
+
+  // Reflect the current curve-quality level on its toolbar button (glyph + title).
+  _syncQualityBtn() {
+    const b = this.root.querySelector('#v-quality');
+    if (!b) return;
+    const lvl = QUALITY_LEVELS.find((q) => q.v === this.curveQuality) || QUALITY_LEVELS[2];
+    b.textContent = lvl.glyph;
+    b.title = `Curve quality: ${lvl.name} — tap to cycle`;
+  }
+
+  // Set curve smoothness, sync the button, and recompile (user-initiated).
+  _setQuality(v) {
+    this.curveQuality = v;
+    setCurveQuality(v);
+    this._syncQualityBtn();
+    this.recompile();
   }
 
   // --- toolbar customisation (the ✎ modal) ----------------------------------
@@ -1656,7 +1699,7 @@ export class App {
     add('Export 3MF', 'units + colour', 'Export', () => { if (A.currentModel) triggerDownload(A._build3MF(), 'part.3mf'); });
     add('Export OBJ', 'mesh', 'Export', () => { if (A.currentModel) triggerDownload(exportOBJ(A.currentModel), 'part.obj'); });
     [['Draft', 24], ['Standard', 48], ['Smooth', 64], ['Ultra', 128]].forEach(([n, v]) =>
-      add(`Quality: ${n}`, 'curve smoothness', 'Quality', () => { A.curveQuality = v; setCurveQuality(v); const sel = A.root.querySelector('#v-quality'); if (sel) sel.value = String(v); A.recompile(); }));
+      add(`Quality: ${n}`, 'curve smoothness', 'Quality', () => A._setQuality(v)));
     add('New project', '', 'Project', () => A._newProject());
     add('Save project', 'Ctrl+S', 'Project', () => A._saveProject());
     add('Save project as…', '', 'Project', () => A._promptName('Save project as', A.project ? A.project.name : '', (n) => A._doSaveAs(n)));
@@ -2472,11 +2515,9 @@ export class App {
     // (mode / level / view). Open one at a time; any click elsewhere closes them.
     const openMenu = (m) => { const was = m.classList.contains('open'); this.root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open')); if (!was) m.classList.add('open'); };
     const appMenu = $('#app-menu');
-    const gearMenu = $('#gear-menu');
     $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
     const toolsMore = $('#tools-more');
     if (toolsMore) $('#tools-more-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(toolsMore); });
-    $('#gear-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(gearMenu); });
     document.addEventListener('click', () => this.root.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
     // Templates / Export fly-out submenus inside the app menu (tap to open on touch)
     this.root.querySelectorAll('.menu-fly-btn').forEach((b) => b.addEventListener('click', (e) => {
@@ -2680,13 +2721,14 @@ export class App {
       helpModal.addEventListener('mousedown', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
     }
 
-    // resizable left panel — drag its right edge (pointer events: touch + mouse)
+    // resizable right panel — drag its inner (left) edge (pointer events: touch + mouse)
     const presize = this.root.querySelector('#panel-resize');
     const stage = this.root.querySelector('.stage');
     if (presize && stage) {
       let sx = 0, sw = 0;
       const move = (e) => {
-        const w = Math.max(240, Math.min(560, sw + (e.clientX - sx)));
+        // panel hugs the right edge, so dragging left (smaller clientX) widens it
+        const w = Math.max(240, Math.min(560, sw - (e.clientX - sx)));
         stage.style.setProperty('--panel-w', `${w}px`);
       };
       const up = () => { presize.classList.remove('dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
@@ -2710,12 +2752,13 @@ export class App {
       this._updateLayerLabel(i);
     });
 
-    // curve smoothness — global segment count for round primitives
-    const qualitySel = this.root.querySelector('#v-quality');
-    if (qualitySel) qualitySel.addEventListener('change', () => {
-      this.curveQuality = +qualitySel.value;
-      setCurveQuality(this.curveQuality);
-      this.recompile();
+    // curve smoothness — a toolbar button that cycles Draft → Standard → Smooth → Ultra
+    const qualityBtn = this.root.querySelector('#v-quality');
+    if (qualityBtn) qualityBtn.addEventListener('click', () => {
+      const i = QUALITY_LEVELS.findIndex((q) => q.v === this.curveQuality);
+      const next = QUALITY_LEVELS[(i + 1) % QUALITY_LEVELS.length];
+      this._setQuality(next.v);
+      this._toast(`Curve quality: ${next.name}`);
     });
 
     // measure tool: toggle + floating distance label fed by the viewport
@@ -3557,27 +3600,8 @@ export class App {
               <button class="rail-btn prep" id="v-fit-plate" title="Fit to plate">⤡</button>
               <button class="rail-btn prep" id="v-cut" title="Cut in half">✂</button>
               <button class="rail-btn" id="mode-toggle" title="Build mode — tap for code">⬓</button>
-            </div>
-          </div>
-          <div class="menu" id="gear-menu">
-            <button class="rail-btn" id="gear-btn" title="Settings — mode · level · quality" aria-label="Settings">⚙</button>
-            <div class="menu-pop">
-              <div class="menu-lab" id="mode-lab">Mode</div>
-              <div class="tabs" id="mode-tabs">
-                <button data-mode="code" class="active">code</button>
-                <button data-mode="build">build</button>
-              </div>
-              <div class="menu-lab">Quality</div>
-              <label class="vquality">Curve smoothness
-                <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
-                  <option value="24">◍ Draft</option>
-                  <option value="48">◍ Standard</option>
-                  <option value="64" selected>◍ Smooth</option>
-                  <option value="128">◍ Ultra</option>
-                </select>
-              </label>
-              <div class="menu-sep"></div>
-              <button id="panel-toggle">Show / hide code panel</button>
+              <button class="rail-btn" id="v-quality" title="Curve quality: Smooth — tap to cycle">◕</button>
+              <button class="rail-btn" id="panel-toggle" title="Code panel — show / hide">⌨</button>
             </div>
           </div>
           </div>

@@ -9,9 +9,9 @@
 //   - grid / theme         → #v-grid (.on class) / #v-theme (html.theme-light + randr.theme)
 //   - measure / layers / cut → live in the #tools-more menu (open #tools-more-btn first):
 //                            #v-measure→app.measureMode, #v-layers→#layer-bar, #v-cut→app.printCut
-//   - mode tabs            → [data-mode] inside #gear-menu (open via #gear-btn) → app.mode
-//   - tier buttons         → #tier-switch [data-tier] inside #gear-menu → app.tier;
-//                            Simple hides #cmd-open (CSS .tier-simple #cmd-open{display:none})
+//   - mode toggle          → #mode-toggle button on the bar → app.mode (code/build)
+//   - curve quality        → #v-quality button cycles app.curveQuality (24/48/64/128)
+//   - code panel           → #panel-toggle button shows/hides #panel (docked right)
 import { test, expect } from '@playwright/test';
 import {
   gotoApp,
@@ -49,16 +49,6 @@ async function clickEl(page, selector) {
     return true;
   }, selector);
   expect(ok, `element not found: ${selector}`).toBe(true);
-}
-
-// Open the ⚙ gear menu (holds the mode tabs + tier switch) and wait for it open.
-async function openGearMenu(page) {
-  await page.click('#gear-btn');
-  await page.waitForFunction(
-    () => document.querySelector('#gear-menu')?.classList.contains('open'),
-    null,
-    { timeout: 5000 },
-  );
 }
 
 test('app boots clean with no console errors', async ({ page }) => {
@@ -210,17 +200,35 @@ test('cut-in-half toggle (in the ⋯ menu) flips app.printCut', async ({ page })
   await page.waitForFunction(() => window.__forgeApp.printCut === 0, null, { timeout: 10000 });
 });
 
-test('mode switch via the gear-menu [data-mode] tabs', async ({ page }) => {
+// The ⚙ gear menu was removed — its three controls (mode, curve quality, code
+// panel) are now plain toolbar buttons. Mode is covered in toolbar.spec.js.
+test('curve-quality button cycles Draft → Standard → Smooth → Ultra → Draft', async ({ page }) => {
   await gotoApp(page);
-  expect(await page.evaluate(() => window.__forgeApp.mode)).toBe('code');
+  const q = page.locator('#v-quality');
+  await expect(q).toBeVisible();
+  expect(await page.evaluate(() => window.__forgeApp.curveQuality)).toBe(64); // Smooth default
+  await q.click();
+  await expect.poll(() => page.evaluate(() => window.__forgeApp.curveQuality)).toBe(128); // Ultra
+  await q.click();
+  await expect.poll(() => page.evaluate(() => window.__forgeApp.curveQuality)).toBe(24); // wraps to Draft
+});
 
-  await openGearMenu(page);
-  await page.click('#gear-menu [data-mode="build"]');
-  await page.waitForFunction(() => window.__forgeApp.mode === 'build', null, { timeout: 5000 });
+test('code-panel button shows / hides the source panel', async ({ page }) => {
+  await gotoApp(page); // boots in code mode → panel open
+  const btn = page.locator('#panel-toggle');
+  await expect(btn).toBeVisible();
+  const collapsed = () => page.evaluate(() => document.querySelector('#panel').classList.contains('collapsed'));
+  const start = await collapsed();
+  await btn.click();
+  await expect.poll(collapsed).toBe(!start);
+  await btn.click();
+  await expect.poll(collapsed).toBe(start);
+});
 
-  await openGearMenu(page); // reopen — the menu collapses on click
-  await page.click('#gear-menu [data-mode="code"]');
-  await page.waitForFunction(() => window.__forgeApp.mode === 'code', null, { timeout: 5000 });
+test('the code panel is docked on the right edge (opposite the toolbar)', async ({ page }) => {
+  await gotoApp(page);
+  const right = await page.locator('#panel').evaluate((el) => getComputedStyle(el).right);
+  expect(right).toBe('0px'); // pinned to the right
 });
 
 // (tier switching removed — the app is Pro-only now; see toolbar.spec.js)
