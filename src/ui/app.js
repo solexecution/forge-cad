@@ -7,13 +7,14 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, nutTrap, keyhole, text, thread, bolt, nut, extrude, revolve, meshSolid, importSTL, importOBJ, import3MF, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
-import { manifoldToGeometry } from '../kernel/mesh.js';
+import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, registerSolid, solidMesh, setCurveQuality } from '../kernel/manifold.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { buildTreeToSource, buildColoredParts, effField, BuildTree } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, BuildTree } from './buildtree.js';
 import { PRIMITIVES, ADDABLE_KINDS, PRIMITIVE_FNS } from './primitives.js';
+import { nodeToGeometry } from './nodeGeometry.js';
+import { scoreOrientations } from '../kernel/orient.js';
 import { sourceToNodes } from './importBuild.js';
 import { shapeArt } from './shapeart.js';
 import { Toolbar, QUALITY_LEVELS } from './toolbar.js';
@@ -145,40 +146,6 @@ function roundCorners(pts, r, seg = 6) {
     for (let k = 0; k <= seg; k++) { const a = a1 + d * (k / seg); out.push([Math.round((c[0] + rr * Math.cos(a)) * 100) / 100, Math.round((c[1] + rr * Math.sin(a)) * 100) / 100]); }
   }
   return out;
-}
-
-// Kernel constructor per primitive kind, keyed by the registry's call name
-// (kind === fn for these). The point/mesh-driven kinds — imported, extrusion,
-// revolution, thread (extra crest arg) — are handled explicitly below.
-const KERNEL = {
-  box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star,
-  roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear,
-  counterbore, countersink, insertHole, nutTrap, keyhole, text, bolt, nut,
-};
-
-// The edit-view mesh for one node. Generic kinds call KERNEL[kind] with the
-// registry's args — the SAME args the source path emits — so the fast mesh path
-// can't drift from the compiled result. Frees the manifold once meshed.
-function nodeToGeometry(node) {
-  const f = (k) => effField(node, k);
-  const prim = PRIMITIVES[node.kind];
-  if (!prim) return null;
-  let m;
-  try {
-    switch (node.kind) {
-      case 'imported':   m = imported(node.meshId || ''); break;
-      case 'extrusion':  { const pts = node.points || []; if (pts.length < 3) return null; m = extrude(pts, f('height')); break; }
-      case 'revolution': { const pts = node.points || []; if (pts.length < 3) return null; m = revolve(pts, f('degrees')); break; }
-      case 'thread':     m = thread(f('length'), f('pitch'), f('d'), 0.61 * f('pitch')); break;
-      default:           m = KERNEL[node.kind](...prim.args.map(f)); break;
-    }
-    const g = manifoldToGeometry(m);
-    m.delete();
-    return g;
-  } catch (e) {
-    if (m) try { m.delete(); } catch { /* freed */ }
-    return null;
-  }
 }
 
 export class App {
@@ -1737,63 +1704,17 @@ export class App {
     const mesh = base.getMesh();
     try { base.delete(); } catch { /* freed */ }
 
-    const D = Math.PI / 180;
-    const rot = (p, rx, ry, rz) => {
-      let [x, y, z] = p, c, s, t;
-      c = Math.cos(rx * D); s = Math.sin(rx * D); t = y; y = c * t - s * z; z = s * t + c * z;
-      c = Math.cos(ry * D); s = Math.sin(ry * D); t = x; x = c * t + s * z; z = -s * t + c * z;
-      c = Math.cos(rz * D); s = Math.sin(rz * D); t = x; x = c * t - s * y; y = s * t + c * y;
-      return [x, y, z];
-    };
-    const vp = mesh.vertProperties, tv = mesh.triVerts, np = mesh.numProp;
-    const nVert = vp.length / np;
-    const metrics = (R) => {
-      // pass 1: rotate the verts, find the bed level (min Z)
-      const rv = new Array(nVert);
-      let minZ = Infinity, maxZ = -Infinity;
-      for (let k = 0; k < nVert; k++) {
-        const o = k * np;
-        const p = rot([vp[o], vp[o + 1], vp[o + 2]], R[0], R[1], R[2]);
-        rv[k] = p;
-        if (p[2] < minZ) minZ = p[2];
-        if (p[2] > maxZ) maxZ = p[2];
-      }
-      // pass 2: a downward face is overhang only if it's ELEVATED above the bed;
-      // downward faces sitting on the plate are bed contact, not overhang.
-      const bedEps = 0.5;
-      let overhang = 0, bed = 0;
-      for (let i = 0; i < tv.length; i += 3) {
-        const p0 = rv[tv[i]], p1 = rv[tv[i + 1]], p2 = rv[tv[i + 2]];
-        const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
-        const vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
-        const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-        const len = Math.hypot(nx, ny, nz) || 1;
-        const area = len / 2, down = -nz / len;
-        const elevated = Math.min(p0[2], p1[2], p2[2]) > minZ + bedEps;
-        if (!elevated && down > 0.985) bed += area;            // resting on the plate
-        else if (elevated && down > 0.7) overhang += area;     // steep floating overhang
-        else if (elevated && down > 0.5) overhang += area * 0.4;
-      }
-      return { overhang, bed, height: maxZ - minZ };
-    };
-
-    const CANDIDATES = [[0, 0, 0], [90, 0, 0], [-90, 0, 0], [180, 0, 0], [0, 90, 0], [0, -90, 0]];
-    let best = null, bestScore = Infinity, baseOverhang = 0;
-    for (const R of CANDIDATES) {
-      const m = metrics(R);
-      if (!R[0] && !R[1] && !R[2]) baseOverhang = m.overhang;
-      const score = m.overhang - m.bed * 0.1 + m.height * 0.02;
-      if (score < bestScore - 1e-6) { bestScore = score; best = { R, m }; }
-    }
+    const best = scoreOrientations(mesh); // pure mesh math lives in kernel/orient.js
     if (!best) return;
 
-    this.printRot = best.R.slice();
+    this.printRot = best.rotation;
     this.recompile();
     this._pushHistory();
     if (this.mode === 'build' && this.viewMode !== 'result') this._setViewMode('result');
-    if (!best.R[0] && !best.R[1] && !best.R[2]) this._toast('Already well-oriented for printing');
+    const flat = !best.rotation[0] && !best.rotation[1] && !best.rotation[2];
+    if (flat) this._toast('Already well-oriented for printing');
     else {
-      const cut = baseOverhang > 0 ? Math.max(0, Math.round((1 - best.m.overhang / baseOverhang) * 100)) : 0;
+      const cut = best.baseOverhang > 0 ? Math.max(0, Math.round((1 - best.overhang / best.baseOverhang) * 100)) : 0;
       this._toast(`Auto-oriented · overhang ↓ ${cut}%`);
     }
   }
