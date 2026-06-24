@@ -73,6 +73,7 @@ export class App {
     this.overrides = {};
     this.params = [];
     this.currentModel = null;
+    this._coloredParts = null; // cached per-part manifolds for result view + 3MF; freed each recompile
     this.printRot = [0, 0, 0]; // print orientation (deg) wrapped around the model at compile
     this.printScale = 1; // uniform scale-to-fit wrapped around the model at compile (1 = none)
     this.printCut = 0; // >0 bisects the model (gap mm) into two repacked halves at compile
@@ -185,6 +186,7 @@ export class App {
   recompile(frame = false) {
     if (this._layerMode) this._exitLayers(); // any model change leaves the slice preview
     this._syncBuildTools(); // keep the floating tools button in sync with the mode
+    this._disposeColoredParts(); // the tree/source changed — invalidate the cached coloured parts
     const source = this._effectiveSource();
 
     const { result, params, error } = compile(source, this.overrides);
@@ -273,19 +275,33 @@ export class App {
   // Code mode (and any compile failure) falls back to the single teal solid.
   _renderResult() {
     if (this.mode === 'build' && this.currentModel) {
-      const parts = buildColoredParts(this.buildTree)
+      const parts = this._getColoredParts();
+      if (parts.length) { this.viewport.setColoredModel(parts); return; }
+    }
+    this.viewport.setModel(this.currentModel || null);
+  }
+
+  // Compile + cache the per-part coloured manifolds (build mode) so result view
+  // and 3MF export reuse them instead of recompiling N parts each time. Freed and
+  // recomputed at the next recompile — the only thing that changes the tree.
+  _getColoredParts() {
+    if (this.mode !== 'build') return [];
+    if (!this._coloredParts) {
+      this._coloredParts = buildColoredParts(this.buildTree)
         .map((p) => {
           try { const m = compile(p.source, {}).result; return m ? { manifold: m, color: p.color } : null; }
           catch { return null; }
         })
         .filter(Boolean);
-      if (parts.length) {
-        this.viewport.setColoredModel(parts);
-        for (const p of parts) { try { p.manifold.delete(); } catch { /* freed */ } }
-        return;
-      }
     }
-    this.viewport.setModel(this.currentModel || null);
+    return this._coloredParts;
+  }
+
+  _disposeColoredParts() {
+    if (this._coloredParts) {
+      for (const p of this._coloredParts) { try { p.manifold.delete(); } catch { /* freed */ } }
+      this._coloredParts = null;
+    }
   }
 
   // Toggle the build view: 'edit' (parts + result ghost) vs 'result' (the
@@ -1322,9 +1338,7 @@ export class App {
   // a filament each; otherwise a plain single-mesh 3MF of the merged model.
   _build3MF() {
     if (this.mode === 'build') {
-      const parts = buildColoredParts(this.buildTree)
-        .map((p) => ({ manifold: compile(p.source, {}).result, color: p.color }))
-        .filter((p) => p.manifold);
+      const parts = this._getColoredParts(); // cached; reused from result view, freed on recompile
       const distinct = new Set(parts.map((p) => p.color));
       if (parts.length > 1 && distinct.size > 1) return export3MFColored(parts);
     }
