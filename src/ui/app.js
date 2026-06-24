@@ -195,8 +195,7 @@ export class App {
     this.printCut = 0; // >0 bisects the model (gap mm) into two repacked halves at compile
     this.curveQuality = 64; // segment count for round primitives (Smooth) — see QUALITY_LEVELS
     this.buildTree = new BuildTree();
-    this.selectedNode = -1;
-    this.selectedNodes = [];
+    this.selectedNodes = []; // the selection set; selectedNode (primary) derives from it
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
     this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
     this.multiSelect = false; // sticky additive selection (touch-friendly — taps add to the selection)
@@ -375,9 +374,7 @@ export class App {
       }))
       .filter((it) => it && it.geometry);
     this.viewport.setEditShapes(items);
-    this.selectedNodes = this.selectedNodes.filter((i) => i < this.buildTree.nodes.length);
-    this.selectedNode = this.selectedNodes.length ? this.selectedNodes[this.selectedNodes.length - 1] : -1;
-    this.viewport.setSelection(this.selectedNodes);
+    this.selectedNodes = this.selectedNodes.filter((i) => i < this.buildTree.nodes.length);    this.viewport.setSelection(this.selectedNodes);
     this._highlightBuildRows();
     this._renderAlignBar();
     this._updatePartsHeader();
@@ -510,6 +507,12 @@ export class App {
       : 'Multi-select off');
   }
 
+  // Primary selection = the last node in the set, -1 when empty. selectedNodes is
+  // the single source of truth; this derives from it (no hand-kept dual state).
+  get selectedNode() {
+    return this.selectedNodes.length ? this.selectedNodes[this.selectedNodes.length - 1] : -1;
+  }
+
   _selectNode(i, additive) {
     if (i < 0) {
       if (!additive) this.selectedNodes = [];
@@ -522,9 +525,7 @@ export class App {
         : [...new Set([...this.selectedNodes, ...grp])];
     } else {
       this.selectedNodes = this._members(i);
-    }
-    this.selectedNode = this.selectedNodes.length ? this.selectedNodes[this.selectedNodes.length - 1] : -1;
-    this.viewport.setSelection(this.selectedNodes);
+    }    this.viewport.setSelection(this.selectedNodes);
     this._highlightBuildRows();
     this._renderAlignBar();
     this._updatePartsHeader();
@@ -690,9 +691,7 @@ export class App {
     const nodes = this.buildTree.nodes;
     const id = nodes.reduce((m, n) => (n.group != null && n.group > m ? n.group : m), 0) + 1;
     sel.forEach((i) => { if (nodes[i]) nodes[i].group = id; });
-    this.selectedNodes = this._members(sel[sel.length - 1]);
-    this.selectedNode = this.selectedNodes[this.selectedNodes.length - 1];
-    this._renderBuildTree();
+    this.selectedNodes = this._members(sel[sel.length - 1]);    this._renderBuildTree();
     this.recompile();
     this._pushHistory();
     this._toast(`Grouped ${sel.length} parts`);
@@ -790,9 +789,7 @@ export class App {
     }
     src.forEach((s) => { s.group = gid; }); // originals join the array group too
     nodes.push(...copies);
-    this.selectedNodes = nodes.map((x, i) => (x.group === gid ? i : -1)).filter((i) => i >= 0);
-    this.selectedNode = this.selectedNodes[this.selectedNodes.length - 1];
-    this._renderBuildTree();
+    this.selectedNodes = nodes.map((x, i) => (x.group === gid ? i : -1)).filter((i) => i >= 0);    this._renderBuildTree();
     this.recompile();
     this._pushHistory();
     this._renderAlignBar();
@@ -860,7 +857,6 @@ export class App {
     const set = new Set(this.selectedNodes);
     this.buildTree.nodes = this.buildTree.nodes.filter((_, i) => !set.has(i));
     this.selectedNodes = [];
-    this.selectedNode = -1;
     this._renderBuildTree();
     this.recompile();
     this._pushHistory();
@@ -872,7 +868,6 @@ export class App {
     if (!this.buildTree.nodes || !this.buildTree.nodes.length) return;
     this.buildTree.nodes = [];
     this.selectedNodes = [];
-    this.selectedNode = -1;
     if (this._panelTab === 'edit') this._setPanelTab('parts');
     this._renderBuildTree();
     this.recompile();
@@ -898,9 +893,7 @@ export class App {
     });
     const start = this.buildTree.nodes.length;
     this.buildTree.nodes.push(...copies);
-    this.selectedNodes = copies.map((_, k) => start + k);
-    this.selectedNode = this.selectedNodes[this.selectedNodes.length - 1];
-    this._renderBuildTree();
+    this.selectedNodes = copies.map((_, k) => start + k);    this._renderBuildTree();
     this.recompile();
     this._pushHistory();
     this._renderAlignBar();
@@ -967,15 +960,21 @@ export class App {
     if (x > window.innerWidth * 0.55) menu.classList.add('ctx-left'); // flyouts open leftward near the right edge
   }
 
+  // Build-tree edits shared by the keyboard shortcuts and the context menu, so
+  // the per-node mutation + the reflow live in one place (not copied in both).
+  _reflowBuild() { this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar(); }
+  _mutateNodes(indices, fn) { indices.forEach((j) => { const n = this.buildTree.nodes[j]; if (n) fn(n); }); this._reflowBuild(); }
+  _toggleHole(indices) { this._mutateNodes(indices, (n) => { n.op = n.op === 'hole' ? 'solid' : 'hole'; }); }
+  _toggleLock(indices) { this._mutateNodes(indices, (n) => { n.locked = !n.locked; }); }
+  _toggleHide(indices) { this._mutateNodes(indices, (n) => { n.hidden = !n.hidden; }); }
+
   _ctxAction(act, i) {
-    const n = this.buildTree.nodes[i];
-    const reflow = () => { this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar(); };
     switch (act) {
       case 'dup': return this._duplicateSelected();
       case 'del': return this._deleteSelected();
-      case 'op': if (n) { n.op = n.op === 'hole' ? 'solid' : 'hole'; reflow(); } return;
-      case 'lock': if (n) { n.locked = !n.locked; reflow(); } return;
-      case 'hide': if (n) { n.hidden = !n.hidden; reflow(); } return;
+      case 'op': return this._toggleHole([i]);
+      case 'lock': return this._toggleLock([i]);
+      case 'hide': return this._toggleHide([i]);
       case 'group': return this._group();
       case 'ungroup': return this._ungroup();
       case 'explode': return this._explodeNode(i);
@@ -1020,7 +1019,7 @@ export class App {
     }).filter(Boolean);
     if (!pieces.length) { this._toast('Couldn’t break this part apart'); return; }
     this.buildTree.nodes.splice(i, 1, ...pieces);
-    this.selectedNodes = []; this.selectedNode = -1;
+    this.selectedNodes = [];
     this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar();
     this._toast(`Broke into ${pieces.length} pieces`);
   }
@@ -1127,7 +1126,7 @@ export class App {
     this.printRot = d.printRot || [0, 0, 0];
     this.printScale = d.printScale || 1;
     this.printCut = d.printCut || 0;
-    this.selectedNode = -1;
+    this.selectedNodes = [];
     this.overrides = {};
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
@@ -1167,7 +1166,7 @@ export class App {
           const nodes = sourceToNodes(this.source);
           this._liftToPlate(nodes);
           this.buildTree.nodes = nodes;
-          this.selectedNodes = []; this.selectedNode = -1;
+          this.selectedNodes = [];
         } catch (e) {
           const why = (e && e.name === 'ForgeError' && e.message) ? e.message
             : 'This design uses features build mode can’t edit yet';
@@ -1359,7 +1358,6 @@ export class App {
         const nodes = sourceToNodes(src);
         this._liftToPlate(nodes);
         this.buildTree.nodes = nodes;
-        this.selectedNode = -1;
         this.selectedNodes = [];
         this._renderBuildTree();
         this._renderAlignBar();
@@ -1447,7 +1445,7 @@ export class App {
     this.buildTree.nodes = Array.isArray(data.nodes) ? data.nodes : [];
     this.overrides = {};
     this._codeMirror = null;
-    this.selectedNodes = []; this.selectedNode = -1;
+    this.selectedNodes = [];
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this.root.querySelector('#editor').value = this.source;
@@ -2032,7 +2030,6 @@ export class App {
           node.meshName = file.name.replace(/\.(stl|obj|3mf)$/i, '');
           const idx = this.buildTree.nodes.length - 1;
           this.selectedNodes = [idx];
-          this.selectedNode = idx;
           this._renderBuildTree();
           this.recompile(true);
           this._pushHistory();
@@ -2060,7 +2057,6 @@ export class App {
       node.rot = [...rot];
     }
     this.selectedNodes = idx >= 0 ? [idx] : [];
-    this.selectedNode = idx;
     this._renderBuildTree();
     this.recompile();
     this._pushHistory();
@@ -2131,7 +2127,7 @@ export class App {
         node.rot = [...rot];
         node.pos = [r2(o[0] - n[0]), r2(o[1] - n[1]), r2(o[2] - n[2])]; // straddle the face (~1 mm in)
         const idx = this.buildTree.nodes.length - 1;
-        this.selectedNodes = [idx]; this.selectedNode = idx;
+        this.selectedNodes = [idx];
         this._renderBuildTree();
         this.recompile();
         this._pushHistory();
@@ -2143,7 +2139,7 @@ export class App {
 
   _deleteNode(i) {
     this.buildTree.nodes.splice(i, 1);
-    this.selectedNode = -1;
+    this.selectedNodes = [];
     this._renderBuildTree();
     this.recompile();
     this._pushHistory();
@@ -2165,7 +2161,7 @@ export class App {
     };
     if (src.points) copy.points = src.points.map((p) => [...p]);
     this.buildTree.nodes.splice(i + 1, 0, copy);
-    this.selectedNode = i + 1;
+    this.selectedNodes = [i + 1];
     this._renderBuildTree();
     this.recompile();
     this._pushHistory();

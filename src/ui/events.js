@@ -432,16 +432,15 @@ class EventBindings {
       // single-key tool shortcuts (build mode, something selected) — mirror the
       // right-click menu's accelerators
       if (this.mode === 'build' && !e.ctrlKey && !e.metaKey && this.selectedNodes.length) {
-        const reflow = () => { this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar(); };
-        const each = (fn) => { this.selectedNodes.forEach((j) => { const n = this.buildTree.nodes[j]; if (n) fn(n); }); reflow(); };
+        const sel = this.selectedNodes;
         if (e.shiftKey) {
           if (k === 'e') { this._placeOp('level'); return; }
           if (k === 'r') { this._placeOp('scale'); return; }
-          if (k === 'h') { each((n) => { n.hidden = !n.hidden; }); return; }
+          if (k === 'h') { this._toggleHide(sel); return; }
           if (k === 'b') { this._explodeNode(this.selectedNode); return; }
         } else {
-          if (k === 'h') { each((n) => { n.op = n.op === 'hole' ? 'solid' : 'hole'; }); return; }
-          if (k === 'l') { each((n) => { n.locked = !n.locked; }); return; }
+          if (k === 'h') { this._toggleHole(sel); return; }
+          if (k === 'l') { this._toggleLock(sel); return; }
           if (k === 'b') { this._placeOp('drop'); return; }
           if (k === 'c') { this._placeOp('center'); return; }
           if (k === 's') { this._placeOp('stack'); return; }
