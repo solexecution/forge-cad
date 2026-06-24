@@ -363,11 +363,12 @@ class EventBindings {
     });
 
     // top-bar cluster: code | build | result (mode-preserving result preview, see
-    // App._setWorkspace) + an independent code-panel show/hide toggle.
+    // App._setWorkspace) + a side-panel toggle that hides whichever sidebar the
+    // current mode shows (code panel in code, parts inspector in build/result).
     $('#mode-seg')?.addEventListener('click', (e) => {
       const opt = e.target.closest('.modeseg-opt');
       if (!opt) return;
-      if (opt.dataset.action === 'panel') this._setPanel();
+      if (opt.dataset.action === 'panel') this._toggleSidebar();
       else if (opt.dataset.view) this._setWorkspace(opt.dataset.view);
     });
 

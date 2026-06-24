@@ -233,6 +233,30 @@ test('the code-panel toggle (in the top-bar control) shows / hides the source pa
   await expect(btn).toHaveClass(/on/);
 });
 
+test('the side-panel toggle hides the parts inspector in build mode (any-sidebar)', async ({ page }) => {
+  await gotoApp(page);
+  await ensureBuildMode(page);
+  const btn = page.locator('#seg-panel');
+  const collapsed = () => page.evaluate(() => document.querySelector('#part-card').classList.contains('collapsed'));
+
+  // build mode → the parts inspector is the visible sidebar; toggle is lit
+  await expect.poll(collapsed).toBe(false);
+  await expect(btn).toHaveClass(/on/);
+
+  await btn.click();                          // ◨ collapses the parts inspector
+  await expect.poll(collapsed).toBe(true);
+  await expect(btn).not.toHaveClass(/on/);
+
+  await btn.click();                          // ◨ brings it back
+  await expect.poll(collapsed).toBe(false);
+  await expect(btn).toHaveClass(/on/);
+
+  // the ▤ Parts button toggles the same panel, and the ◨ reflection stays in sync
+  await page.click('#parts-toggle');
+  await expect.poll(collapsed).toBe(true);
+  await expect(btn).not.toHaveClass(/on/);
+});
+
 test('the code panel is docked on the right edge (opposite the toolbar)', async ({ page }) => {
   await gotoApp(page);
   const right = await page.locator('#panel').evaluate((el) => getComputedStyle(el).right);

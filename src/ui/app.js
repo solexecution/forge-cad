@@ -480,11 +480,18 @@ export class App {
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    // the 4th control is an independent toggle (not a mode): lit while the panel is open
+    // the 4th control is an independent toggle (not a mode): lit while the current
+    // mode's sidebar is open — the code panel in code, the parts inspector elsewhere
     const panelBtn = this.root.querySelector('#seg-panel');
     if (panelBtn) {
-      const panel = this.root.querySelector('#panel');
-      const open = !!panel && !panel.classList.contains('collapsed');
+      let open;
+      if (this.mode === 'code') {
+        const panel = this.root.querySelector('#panel');
+        open = !!panel && !panel.classList.contains('collapsed');
+      } else {
+        const card = this.root.querySelector('#part-card');
+        open = !!card && !card.classList.contains('hidden') && !this._cardCollapsed;
+      }
       panelBtn.classList.toggle('on', open);
       panelBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
     }
@@ -582,6 +589,7 @@ export class App {
     }
     const minBtn = this.root.querySelector('#card-min');
     if (minBtn) { minBtn.textContent = dock === 'right' ? '»' : '«'; minBtn.title = 'Hide the parts panel'; }
+    this._syncModeSeg(); // the ◨ side-panel toggle reflects the parts inspector in build/result
   }
 
   _saveCardDock() {
@@ -1967,6 +1975,14 @@ export class App {
     const collapse = open === undefined ? !panel.classList.contains('collapsed') : !open;
     panel.classList.toggle('collapsed', collapse);
     this._syncModeSeg(); // reflect the panel open-state on the top-bar control
+  }
+
+  // The ◨ top-bar button hides/shows the side panel for the CURRENT mode, so one
+  // control collapses the sidebar whatever you're doing: the code panel in code
+  // mode, the parts inspector (#part-card) in build/result.
+  _toggleSidebar() {
+    if (this.mode === 'code') this._setPanel();
+    else this._setCardCollapsed?.(!this._cardCollapsed);
   }
 
   _openAddModal() {
