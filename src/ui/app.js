@@ -310,26 +310,26 @@ export class App {
 
   // --- compile + render loop ------------------------------------------------
 
+  // The exact source the kernel should compile: the active model (build tree or
+  // code source) wrapped with the print-prep transforms — orientation,
+  // scale-to-fit, bisect. One definition so every compile path that must agree
+  // (recompile + the single-shape HUD refresh, hence currentModel and export)
+  // sees identical geometry. No-op at defaults. (Auto-orient / scale-to-fit build
+  // their own measuring source — they compute a *replacement* rotation/scale.)
+  _effectiveSource() {
+    let source = this.mode === 'build' ? buildTreeToSource(this.buildTree) : this.source;
+    if (!source.trim()) return source;
+    const [rx, ry, rz] = this.printRot || [0, 0, 0];
+    if (rx || ry || rz) source = `rotate([${rx}, ${ry}, ${rz}]) {\n${source}\n}`;
+    if (this.printScale && this.printScale !== 1) source = `scale([${this.printScale}, ${this.printScale}, ${this.printScale}]) {\n${source}\n}`;
+    if (this.printCut && this.printCut > 0) source = `bisect(${this.printCut}) {\n${source}\n}`;
+    return source;
+  }
+
   recompile(frame = false) {
     if (this._layerMode) this._exitLayers(); // any model change leaves the slice preview
     this._syncBuildTools(); // keep the floating tools button in sync with the mode
-    let source = this.mode === 'build'
-      ? buildTreeToSource(this.buildTree)
-      : this.source;
-
-    // Print orientation + scale-to-fit: wrap the whole model. No-op at defaults.
-    const pr = this.printRot;
-    if (pr && (pr[0] || pr[1] || pr[2]) && source.trim()) {
-      source = `rotate([${pr[0]}, ${pr[1]}, ${pr[2]}]) {\n${source}\n}`;
-    }
-    const ps = this.printScale;
-    if (ps && ps !== 1 && source.trim()) {
-      source = `scale([${ps}, ${ps}, ${ps}]) {\n${source}\n}`;
-    }
-    const pc = this.printCut;
-    if (pc && pc > 0 && source.trim()) {
-      source = `bisect(${pc}) {\n${source}\n}`;
-    }
+    const source = this._effectiveSource();
 
     const { result, params, error } = compile(source, this.overrides);
 
@@ -1735,9 +1735,11 @@ export class App {
     if (result) { try { result.delete(); } catch { /* freed */ } }
   }
 
-  // recompute the merged solid for HUD/export without rebuilding edit meshes
+  // recompute the merged solid for HUD/export without rebuilding edit meshes —
+  // through _effectiveSource so a single-shape drag after auto-orient / scale-to-fit
+  // / cut keeps currentModel + the HUD consistent with recompile (was a divergent fork)
   _recompileMergedHUD() {
-    const { result, error } = compile(buildTreeToSource(this.buildTree), {});
+    const { result, error } = compile(this._effectiveSource(), this.overrides);
     const errEl = this.root.querySelector('#error');
     if (error) { errEl.textContent = error; errEl.classList.add('show'); this._setStatus('error'); return; }
     errEl.classList.remove('show');

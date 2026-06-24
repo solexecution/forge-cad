@@ -263,6 +263,27 @@ test('the code panel is docked on the right edge (opposite the toolbar)', async 
   expect(right).toBe('0px'); // pinned to the right
 });
 
+test('the single-shape HUD refresh honours print prep (no compile fork)', async ({ page }) => {
+  // _recompileMergedHUD used to compile the raw build tree, so a gizmo drag after
+  // auto-orient/scale-to-fit refreshed currentModel + HUD from geometry that ignored
+  // printRot/Scale/Cut. It must now match recompile() exactly.
+  await gotoApp(page);
+  await ensureBuildMode(page);
+  const dims = () => page.evaluate(() => {
+    const m = window.__forgeApp.currentModel; if (!m) return null;
+    const b = m.boundingBox();
+    return [b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]].map((n) => +n.toFixed(2));
+  });
+  await page.evaluate(() => { const a = window.__forgeApp; a.printScale = 1; a.printRot = [0, 0, 0]; a.printCut = 0; a.recompile(); });
+  const base = await dims();
+  await page.evaluate(() => { const a = window.__forgeApp; a.printScale = 0.5; a.recompile(); });
+  const afterRecompile = await dims();
+  await page.evaluate(() => window.__forgeApp._recompileMergedHUD());
+  const afterHud = await dims();
+  expect(afterRecompile).not.toEqual(base);   // the print scale actually changed the model
+  expect(afterHud).toEqual(afterRecompile);   // the HUD-refresh path matches recompile (the fix)
+});
+
 // (tier switching removed — the app is Pro-only now; see toolbar.spec.js)
 
 test('code editor: scrolling the textarea keeps the highlight layer in sync', async ({ page }) => {
