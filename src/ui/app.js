@@ -28,7 +28,7 @@ import { installEvents } from './events.js';
 import { installBuildPane } from './buildPane.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
-import * as Projects from './projects.js';
+import { ProjectStore } from './projectStore.js';
 
 // Round the corners of a closed polygon by radius r (tessellated arcs), so a
 // drawn sketch can have curved/organic edges. Clamps r per-corner to the
@@ -79,6 +79,7 @@ export class App {
     this.buildTree = new BuildTree();
     this.cmd = new CommandPalette(this); // Ctrl+K command palette (owns its own modal state)
     this.ctx = new ContextMenu(this); // right-click action hub
+    this.projects = new ProjectStore(this); // project lifecycle (save/open/delete/recent)
     this.selectedNodes = []; // the selection set; selectedNode (primary) derives from it
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
     this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
@@ -1176,203 +1177,27 @@ export class App {
     this._updateHistoryButtons();
   }
 
-  // Write the current design into the open project (+ metadata). No-op if none.
-  _saveCurrent() {
-    if (!this.project) return null;
-    this.project.modified = Date.now();
-    this.project.seconds = this._workSeconds;
-    const entry = Projects.saveProject(this.project, this._serializeDesign());
-    Projects.setCurrentId(this.project.id);
-    return entry;
-  }
-
-  _scheduleAutosave() {
-    if (!this.project || this._restoring) return;
-    clearTimeout(this._autosaveTimer);
-    this._autosaveTimer = setTimeout(() => this._saveCurrent(), 1500);
-  }
-
-  _newProject() {
-    if (this.project) { this._prevProjectId = this.project.id; this._saveCurrent(); }
-    const meta = { id: Projects.newId(), name: this._uniqueName('Untitled'), created: Date.now(), modified: Date.now(), seconds: 0 };
-    this.project = meta;
-    this._workSeconds = 0;
-    this._applyDesign({ v: 1, mode: 'build', source: '', viewMode: 'edit', nodes: [], meshes: {} });
-    this._saveCurrent();
-    this._updateProjectName();
-    this._toast(`New project · ${meta.name}`);
-  }
-
-  _saveProject() {
-    if (!this.project) { this._promptName('Save project as', '', (name) => this._doSaveAs(name)); return; }
-    const entry = this._saveCurrent();
-    this._updateProjectName();
-    this._toast(entry ? `Saved “${this.project.name}”` : 'Save failed — local storage full');
-  }
-
-  _doSaveAs(name) {
-    const clean = (name || '').trim();
-    if (!clean) return;
-    if (this.project) { this._prevProjectId = this.project.id; this._saveCurrent(); } // checkpoint the source project first
-    const meta = { id: Projects.newId(), name: this._uniqueName(clean), created: Date.now(), modified: Date.now(), seconds: this._workSeconds };
-    this.project = meta;
-    const entry = Projects.saveProject(meta, this._serializeDesign());
-    Projects.setCurrentId(meta.id);
-    this._updateProjectName();
-    this._toast(entry ? `Saved as “${meta.name}”` : 'Save failed — local storage full');
-  }
-
-  _openProject(id) {
-    const meta = Projects.listProjects().find((p) => p.id === id);
-    const data = Projects.loadProject(id);
-    if (!meta || !data) { this._toast('Could not open that project'); return; }
-    if (this.project && this.project.id !== id) { this._prevProjectId = this.project.id; this._saveCurrent(); }
-    this.project = { id: meta.id, name: meta.name, created: meta.created, modified: meta.modified, seconds: meta.seconds || 0 };
-    this._workSeconds = meta.seconds || 0;
-    this._applyDesign(data);
-    Projects.setCurrentId(id);
-    this._updateProjectName();
-    this._closeModal('#proj-modal');
-    this._toast(`Opened “${meta.name}”`);
-  }
-
-  _deleteProject(id) {
-    Projects.deleteProject(id);
-    if (this.project && this.project.id === id) {
-      // deleted the open one — fall back to most recent, or a fresh project
-      const next = Projects.listProjects().sort((a, b) => b.modified - a.modified)[0];
-      if (next) this._openProject(next.id); else this._newProject();
-    }
-    this._renderProjectList();
-    this._updateProjectName();
-  }
-
-  _renameCurrentProject(name) {
-    const clean = (name || '').trim();
-    if (!clean || !this.project) return;
-    this.project.name = this._uniqueName(clean, this.project.id);
-    Projects.renameProject(this.project.id, this.project.name, Date.now());
-    this._updateProjectName();
-    this._renderProjectList();
-  }
-
-  // Make a name unique within the index (append " 2", " 3", …).
-  _uniqueName(base, exceptId) {
-    const taken = new Set(Projects.listProjects().filter((p) => p.id !== exceptId).map((p) => p.name));
-    if (!taken.has(base)) return base;
-    let i = 2;
-    while (taken.has(`${base} ${i}`)) i++;
-    return `${base} ${i}`;
-  }
-
-  _updateProjectName() {
-    const el = this.root.querySelector('#proj-name');
-    if (el) el.textContent = this.project ? this.project.name : 'Untitled';
-    this._updateProjBackBtn();
-  }
-
-  // Show the one-click "back" button only when there's a still-existing project
-  // to return to (and it isn't the one already open). Switching keeps flipping
-  // _prevProjectId, so the button toggles between the two most recent projects.
-  _updateProjBackBtn() {
-    const btn = this.root.querySelector('#proj-back');
-    if (!btn) return;
-    const curId = this.project && this.project.id;
-    const prev = this._prevProjectId && this._prevProjectId !== curId
-      ? Projects.listProjects().find((p) => p.id === this._prevProjectId)
-      : null;
-    btn.hidden = !prev;
-    if (prev) { btn.title = `Back to “${prev.name}”`; btn.textContent = `↩ Back to “${prev.name}”`; }
-  }
-
-  // One-click jump to the project we were on before this one.
-  _goToPrevious() {
-    const id = this._prevProjectId;
-    if (!id || (this.project && id === this.project.id)) return;
-    if (!Projects.listProjects().some((p) => p.id === id)) { this._prevProjectId = null; this._updateProjBackBtn(); return; }
-    this._openProject(id); // sets _prevProjectId to the project we're leaving, so back toggles
-  }
-
-  // Recent-projects list inside the project dropdown (excludes the open one), so
-  // any background project is one click away without opening the manager.
-  _renderRecentMenu() {
-    const host = this.root.querySelector('#proj-recent');
-    const sep = this.root.querySelector('#proj-recent-sep');
-    const lab = this.root.querySelector('#proj-recent-lab');
-    if (!host) return;
-    const curId = this.project && this.project.id;
-    const list = Projects.listProjects()
-      .filter((p) => p.id !== curId)
-      .sort((a, b) => b.modified - a.modified)
-      .slice(0, 6);
-    if (sep) sep.hidden = !list.length;
-    if (lab) lab.hidden = !list.length;
-    host.innerHTML = list
-      .map((p) => `<button data-switch="${p.id}">${String(p.name).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</button>`)
-      .join('');
-  }
-
-  // Count visible (engaged) seconds for the current project; flush periodically.
-  _setupWorkTimer() {
-    let ticks = 0;
-    setInterval(() => {
-      if (document.visibilityState !== 'visible' || !this.project) return;
-      this._workSeconds += 5;
-      if (++ticks % 6 === 0) Projects.touchSeconds(this.project.id, this._workSeconds); // flush ~every 30s
-    }, 5000);
-    window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && this.project) Projects.touchSeconds(this.project.id, this._workSeconds);
-    });
-  }
-
-  // On boot: restore the last project, else adopt the most recent, else create
-  // the first one from the current starter design.
-  _initProjects() {
-    this._setupWorkTimer();
-    const cur = Projects.getCurrentId();
-    const list = Projects.listProjects();
-    const meta = (cur && list.find((p) => p.id === cur)) || list.sort((a, b) => b.modified - a.modified)[0];
-    if (meta) this._openProject(meta.id);
-    else this._doSaveAs('Untitled'); // first run — save the starter as project #1
-  }
-
-  _fmtSize(bytes) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1048576).toFixed(2)} MB`;
-  }
-
-  _fmtWork(sec) {
-    if (!sec || sec < 60) return '< 1 min';
-    const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
-    return h ? `${h}h ${m}m` : `${m} min`;
-  }
-
-  _fmtDate(ts) {
-    if (!ts) return '—';
-    const d = new Date(ts);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', '
-      + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  }
-
-  _renderProjectList() {
-    const host = this.root.querySelector('#proj-list');
-    if (!host) return;
-    const list = Projects.listProjects().sort((a, b) => b.modified - a.modified);
-    if (!list.length) { host.innerHTML = '<p class="muted">No saved projects yet.</p>'; return; }
-    host.innerHTML = list.map((p) => `
-      <div class="proj-row${this.project && p.id === this.project.id ? ' current' : ''}" data-pid="${p.id}">
-        <div class="proj-main" data-open="${p.id}">
-          <div class="proj-name">${String(p.name).replace(/</g, '&lt;')}${this.project && p.id === this.project.id ? ' ·<span class="proj-cur"> open</span>' : ''}</div>
-          <div class="proj-meta">${this._fmtSize(p.size || 0)} · ${this._fmtWork(p.seconds)} worked · created ${this._fmtDate(p.created)} · edited ${this._fmtDate(p.modified)}</div>
-        </div>
-        <div class="proj-acts">
-          <button data-open="${p.id}" title="Open">Open</button>
-          <button data-rename="${p.id}" title="Rename">✎</button>
-          <button data-del="${p.id}" title="Delete" class="proj-del">✕</button>
-        </div>
-      </div>`).join('');
-  }
+  // Project lifecycle lives in ProjectStore (projectStore.js); App owns the state
+  // (this.project, _workSeconds, _prevProjectId, _autosaveTimer) and forwards these.
+  _saveCurrent() { return this.projects.saveCurrent(); }
+  _scheduleAutosave() { this.projects.scheduleAutosave(); }
+  _newProject() { this.projects.newProject(); }
+  _saveProject() { this.projects.saveProject(); }
+  _doSaveAs(name) { this.projects.doSaveAs(name); }
+  _openProject(id) { this.projects.openProject(id); }
+  _deleteProject(id) { this.projects.deleteProject(id); }
+  _renameCurrentProject(name) { this.projects.renameCurrentProject(name); }
+  _uniqueName(base, exceptId) { return this.projects.uniqueName(base, exceptId); }
+  _updateProjectName() { this.projects.updateProjectName(); }
+  _updateProjBackBtn() { this.projects.updateProjBackBtn(); }
+  _goToPrevious() { this.projects.goToPrevious(); }
+  _renderRecentMenu() { this.projects.renderRecentMenu(); }
+  _setupWorkTimer() { this.projects.setupWorkTimer(); }
+  _initProjects() { this.projects.initProjects(); }
+  _fmtSize(bytes) { return this.projects.fmtSize(bytes); }
+  _fmtWork(sec) { return this.projects.fmtWork(sec); }
+  _fmtDate(ts) { return this.projects.fmtDate(ts); }
+  _renderProjectList() { this.projects.renderProjectList(); }
 
   _openModal(sel) { const m = this.root.querySelector(sel); if (m) m.classList.remove('hidden'); }
   _closeModal(sel) { const m = this.root.querySelector(sel); if (m) m.classList.add('hidden'); }
