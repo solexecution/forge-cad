@@ -1198,7 +1198,7 @@ export class App {
     $('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this._syncBuildTools();
     if (this.mode === 'build') this._renderBuildTree();
-    this.recompile(true);
+    this.recompile(); // keep the camera as-is — code/build show the same object, so don't reframe
     this._pushHistory();
     this._syncToolbar();
     this._syncModeSeg(); // code/build switch changes the highlighted segment
