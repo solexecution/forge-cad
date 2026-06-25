@@ -108,6 +108,50 @@ const CLEARANCE_X2 = new Set(['box', 'roundedBox', 'chamferedBox']);
 
 export function supportsClearance(kind) { return !!CLEARANCE_KEYS[kind]; }
 
+const SIZE_EDGE_KEYS = new Set(['c', 'r', 'fillet', 'chamfer']);
+const SIZE_COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth', 'points']);
+
+// True for a numeric field that sets overall part size (not edge radius / counts).
+export function isSizeField(kind, key) {
+  if (SIZE_EDGE_KEYS.has(key) || SIZE_COUNT_KEYS.has(key)) return false;
+  const p = PRIMITIVES[kind];
+  if (!p) return false;
+  return p.fields.some(([k, , type]) => k === key && type !== 'text');
+}
+
+const r2 = (v) => Math.round(v * 100) / 100;
+
+// Fold a positive resize-scale into field values so W/D/H inputs match the mesh.
+// Skips mirrored (negative) scale — those stay on node.scale.
+export function bakeNodeScale(node) {
+  const s = node.scale || [1, 1, 1];
+  if (s[0] === 1 && s[1] === 1 && s[2] === 1) return false;
+  if (s[0] < 0 || s[1] < 0 || s[2] < 0) return false;
+  const xy = Math.max(Math.abs(s[0]), Math.abs(s[1]));
+  for (const f of node.fields) {
+    if (f.type === 'text') continue;
+    const k = f.key;
+    if (CLEARANCE_X2.has(node.kind) && (k === 'x' || k === 'y' || k === 'z')) {
+      const ax = { x: 0, y: 1, z: 2 }[k];
+      f.value = r2(f.value * Math.abs(s[ax]));
+    } else if (k === 'h') {
+      f.value = r2(f.value * Math.abs(s[2]));
+    } else if (['r', 'r1', 'r2', 'router', 'rinner', 'radius', 'tube', 'outer', 'inner'].includes(k)) {
+      f.value = r2(f.value * xy);
+    }
+  }
+  node.scale = [1, 1, 1];
+  return true;
+}
+
+// Typing a size field makes those mm the source of truth — drop resize scale.
+export function resetScaleOnSizeEdit(node) {
+  const s = node.scale || [1, 1, 1];
+  if (s[0] === 1 && s[1] === 1 && s[2] === 1) return false;
+  node.scale = [s[0] < 0 ? -1 : 1, s[1] < 0 ? -1 : 1, s[2] < 0 ? -1 : 1];
+  return true;
+}
+
 // A field value with the part's fit clearance folded in: a hole grows, a solid
 // shrinks, so a positive clearance always means a looser printed fit. Applied
 // only to the shape's mating (radial / cross-section) dimensions.

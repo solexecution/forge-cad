@@ -176,7 +176,7 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
             </div>
             <div class="pcol-edit hidden" id="pcol-edit">
               <div class="pedit-head">
-                <span class="pedit-label">Selected</span>
+                <span class="pedit-label">Size</span>
                 <span id="part-modal-metrics" class="pm-metrics">—</span>
               </div>
               <div id="part-modal-fields"></div>

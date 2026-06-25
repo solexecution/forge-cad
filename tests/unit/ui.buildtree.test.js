@@ -5,6 +5,9 @@ import {
   buildTreeToSource,
   buildColoredParts,
   BuildTree,
+  bakeNodeScale,
+  resetScaleOnSizeEdit,
+  isSizeField,
 } from '../../src/ui/buildtree.js';
 
 // buildtree is the build-pane data model: it builds plain node objects and emits
@@ -73,6 +76,41 @@ describe('createNode', () => {
     const strField = t.fields.find((f) => f.key === 'str');
     expect(strField.type).toBe('text');
     expect(strField.value).toBe('Text');
+  });
+});
+
+describe('size fields vs resize scale', () => {
+  it('bakeNodeScale folds positive scale into chamferedBox W/D/H', () => {
+    const n = createNode('chamferedBox');
+    n.scale = [2, 2, 1];
+    expect(bakeNodeScale(n)).toBe(true);
+    expect(n.scale).toEqual([1, 1, 1]);
+    expect(n.fields.find((f) => f.key === 'x').value).toBe(48);
+    expect(n.fields.find((f) => f.key === 'y').value).toBe(48);
+    expect(n.fields.find((f) => f.key === 'z').value).toBe(24);
+    expect(n.fields.find((f) => f.key === 'c').value).toBe(4);
+  });
+
+  it('bakeNodeScale skips mirrored (negative) scale', () => {
+    const n = createNode('box');
+    n.scale = [-1, 1, 1];
+    expect(bakeNodeScale(n)).toBe(false);
+    expect(n.scale).toEqual([-1, 1, 1]);
+  });
+
+  it('resetScaleOnSizeEdit clears resize but keeps mirror sign', () => {
+    const n = createNode('box');
+    n.scale = [2.5, 1, 1];
+    expect(resetScaleOnSizeEdit(n)).toBe(true);
+    expect(n.scale).toEqual([1, 1, 1]);
+    n.scale = [-2, 1, 1];
+    resetScaleOnSizeEdit(n);
+    expect(n.scale).toEqual([-1, 1, 1]);
+  });
+
+  it('isSizeField treats chamfer c as edge-only, not overall size', () => {
+    expect(isSizeField('chamferedBox', 'x')).toBe(true);
+    expect(isSizeField('chamferedBox', 'c')).toBe(false);
   });
 });
 

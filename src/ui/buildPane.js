@@ -1,5 +1,5 @@
 import { esc } from './escape.js';
-import { isFastener, METRIC_SIZES, currentMetricSize, supportsClearance, isShellable, supportsFillet, setNodeKind, applyMetricSize } from './buildtree.js';
+import { isFastener, METRIC_SIZES, currentMetricSize, supportsClearance, isShellable, supportsFillet, setNodeKind, applyMetricSize, isSizeField, resetScaleOnSizeEdit } from './buildtree.js';
 import { ADDABLE_KINDS } from './primitives.js';
 
 // App's build-pane renderers (the part-editor tree + the compact parts list),
@@ -56,6 +56,14 @@ class BuildPaneRenderers {
     const KINDS = ADDABLE_KINDS; // the kind picker — single source of truth in primitives.js
     const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
     const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth', 'points']);
+    const EDGE_KEYS = new Set(['c', 'r', 'fillet', 'chamfer']);
+    const fieldInput = (idx, f) => {
+      if (f.type === 'text') {
+        return `<label class="bn-text">${f.label}<input type="text" value="${esc(f.value)}" data-field="${idx}:${f.key}" spellcheck="false"></label>`;
+      }
+      const isCount = COUNT_KEYS.has(f.key);
+      return `<label${isCount ? '' : ' data-unit="mm"'}>${f.label}<input type="number" step="${isCount ? 1 : 0.5}" value="${f.value}" data-field="${idx}:${f.key}"></label>`;
+    };
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     [this.selectedNode].forEach((idx) => {
       const node = this.buildTree.nodes[idx];
@@ -64,13 +72,8 @@ class BuildPaneRenderers {
         + (node.op === 'hole' ? ' is-hole' : '')
         + (node.hidden ? ' is-hidden' : '');
       row.dataset.node = idx;
-      const dims = node.fields.map((f) => {
-        if (f.type === 'text') {
-          return `<label class="bn-text">${f.label}<input type="text" value="${esc(f.value)}" data-field="${idx}:${f.key}" spellcheck="false"></label>`;
-        }
-        const isCount = COUNT_KEYS.has(f.key);
-        return `<label${isCount ? '' : ' data-unit="mm"'}>${f.label}<input type="number" step="${isCount ? 1 : 0.5}" value="${f.value}" data-field="${idx}:${f.key}"></label>`;
-      }).join('');
+      const mainDims = node.fields.filter((f) => !EDGE_KEYS.has(f.key)).map((f) => fieldInput(idx, f)).join('');
+      const edgeDims = node.fields.filter((f) => EDGE_KEYS.has(f.key)).map((f) => fieldInput(idx, f)).join('');
       const hasMore = supportsClearance(node.kind) || isShellable(node.kind) || supportsFillet(node.kind);
       row.innerHTML = `
         <div class="bn-head">
@@ -107,7 +110,8 @@ class BuildPaneRenderers {
             </select></label>
             <span class="bn-size-hint">sets Ø + pitch${node.kind === 'thread' ? '' : ' + hex'}</span>
           </div>` : ''}
-          <div class="bn-fields">${dims}</div>
+          <div class="bn-fields">${mainDims}</div>
+          ${edgeDims ? `<div class="bn-fields bn-edge">${edgeDims}</div><span class="bn-clear-hint">edge size — overall W/D/H stay as above</span>` : ''}
         </div>
         <details class="bn-sec">
           <summary>Position &amp; rotation</summary>
@@ -180,8 +184,10 @@ class BuildPaneRenderers {
     }));
     host.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
       const [i, key] = el.dataset.field.split(':');
-      const f = nodes[+i].fields.find((x) => x.key === key);
+      const n = nodes[+i];
+      const f = n.fields.find((x) => x.key === key);
       f.value = f.type === 'text' ? el.value : parseFloat(el.value);
+      if (isSizeField(n.kind, key)) resetScaleOnSizeEdit(n);
       this._scheduleRecompile();
     }));
     host.querySelectorAll('[data-pos]').forEach((el) => el.addEventListener('input', () => {

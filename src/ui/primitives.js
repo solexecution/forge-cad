@@ -13,6 +13,23 @@
 const escStr = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 const ptsLit = (node) => (node.points || []).map(([x, y]) => `[${x}, ${y}]`).join(', ');
 
+// Human-readable labels for the build editor (keys stay as-is in emitted source).
+export const FIELD_LABELS = {
+  x: 'width', y: 'depth', z: 'height',
+  w: 'width', d: 'depth', h: 'height',
+  r: 'radius', r1: 'radius 1', r2: 'radius 2',
+  c: 'chamfer', chamfer: 'chamfer', fillet: 'corner r',
+  length: 'length', router: 'outer Ø', rinner: 'inner Ø',
+  radius: 'major r', tube: 'tube r',
+  outer: 'outer r', inner: 'inner r', points: 'points',
+  sides: 'sides', teeth: 'teeth', module: 'module', bore: 'bore Ø',
+  shaftD: 'shaft Ø', headD: 'head Ø', headDepth: 'head depth',
+  depth: 'depth', insertD: 'insert Ø', slotW: 'slot width',
+  headAF: 'head AF', af: 'across flats', pitch: 'pitch',
+  thickness: 'thickness', str: 'text', size: 'font size', height: 'extrude h',
+  degrees: 'degrees',
+};
+
 // Per row:
 //   fields   – default field defs: [key, value, type?]
 //   base(g)  – on-plate half-height, g(key) → current value (omitted ⇒ 0)
@@ -78,7 +95,9 @@ export function baseHalfHeight(kind, get) {
 
 // Default field list for a kind (fresh, editable copies).
 export function fieldsFor(kind) {
-  return PRIMITIVES[kind].fields.map(([key, value, type]) => ({ key, label: key, value, type: type || 'number' }));
+  return PRIMITIVES[kind].fields.map(([key, value, type]) => ({
+    key, label: FIELD_LABELS[key] || key, value, type: type || 'number',
+  }));
 }
 
 // The base shape call as source: `kind(...args)`, or the row's custom override.

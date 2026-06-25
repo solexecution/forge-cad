@@ -11,7 +11,7 @@ import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, regist
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { buildTreeToSource, buildColoredParts, BuildTree } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, BuildTree, bakeNodeScale } from './buildtree.js';
 import { ADDABLE_KINDS } from './primitives.js';
 import { nodeToGeometry } from './nodeGeometry.js';
 import { scoreOrientations } from '../kernel/orient.js';
@@ -441,8 +441,12 @@ export class App {
         : [...new Set([...this.selectedNodes, ...grp])];
     } else {
       this.selectedNodes = this._members(i);
-    }    this.viewport.setSelection(this.selectedNodes);
+    }
+    let baked = false;
+    if (i >= 0 && !additive) baked = bakeNodeScale(this.buildTree.nodes[i]);
+    this.viewport.setSelection(this.selectedNodes);
     this._highlightBuildRows();
+    if (baked) this._scheduleRecompile();
     this._renderAlignBar();
     this._updatePartsHeader();
   }
