@@ -129,7 +129,10 @@ export class Viewport {
     this.onShapeMove = null;       // (index, [x,y,z]) — live during drag
     this.onShapeMoveEnd = null;    // (index, [x,y,z])
     this.onTransform = null;       // (index, {pos,rot,scale}) — live during gizmo drag
+    this.onGroupTransform = null;  // (updates[{index,pos,rot,scale}]) — rigid multi-part drag
     this.onTransformEnd = null;    // (index)
+    this._groupPivot = null;       // gizmo anchor at selection centre (2+ parts)
+    this._groupXformLocals = null; // each member's matrix relative to the pivot
     this.onMultiArm = null;        // (on) — long-press armed / disarmed multi-select
     this._lpTimer = null;          // long-press timer (touch multi-select)
     this._raycaster = new THREE.Raycaster();
@@ -846,9 +849,14 @@ export class Viewport {
     g.setSpace('world');
     g.addEventListener('dragging-changed', (e) => {
       this._gizmoDragging = e.value;
-      if (!e.value && this.onTransformEnd && this.selectedIndex >= 0) this.onTransformEnd(this.selectedIndex);
+      if (e.value) this.beginGroupTransform();
+      else {
+        this.endGroupTransform();
+        if (this.onTransformEnd && this.selectedIndex >= 0) this.onTransformEnd(this.selectedIndex);
+      }
     });
     g.addEventListener('objectChange', () => {
+      if (this._groupXformLocals) { this._propagateGroupPivotTransform(); return; }
       const em = this.editMeshes.find((m) => m.index === this.selectedIndex);
       if (!em || !this.onTransform) return;
       const m = em.mesh, D = 180 / Math.PI;
@@ -867,6 +875,79 @@ export class Viewport {
   setTransformMode(mode) {
     this.transformMode = mode;
     if (this.gizmo) this.gizmo.setMode(mode);
+  }
+
+  // With 2+ shapes selected, park the gizmo on a pivot at the selection centre
+  // so move/rotate/scale applies as one rigid body (not per-part euler deltas).
+  beginGroupTransform() {
+    const sel = this.selectedSet;
+    if (sel.length < 2) return false;
+    if (!this._groupPivot) {
+      this._groupPivot = new THREE.Object3D();
+      this.editGroup.add(this._groupPivot);
+    }
+    const box = new THREE.Box3();
+    for (const i of sel) {
+      const em = this.editMeshes.find((e) => e.index === i);
+      if (em) { em.mesh.updateMatrixWorld(true); box.expandByObject(em.mesh); }
+    }
+    if (box.isEmpty()) return false;
+    box.getCenter(this._xfCenter);
+    this._groupPivot.position.copy(this._xfCenter);
+    this._groupPivot.rotation.set(0, 0, 0);
+    this._groupPivot.scale.set(1, 1, 1);
+    this._groupPivot.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(this._groupPivot.matrixWorld).invert();
+    this._groupXformLocals = [];
+    for (const i of sel) {
+      const em = this.editMeshes.find((e) => e.index === i);
+      if (!em) continue;
+      const local = new THREE.Matrix4().copy(em.mesh.matrixWorld).premultiply(inv);
+      this._groupXformLocals.push({ index: i, matrix: local });
+    }
+    if (this.gizmo) { this.gizmo.attach(this._groupPivot); this.gizmo.setMode(this.transformMode); }
+    return true;
+  }
+
+  _propagateGroupPivotTransform() {
+    if (!this._groupXformLocals || !this._groupPivot || !this.onGroupTransform) return;
+    this._groupPivot.updateMatrixWorld(true);
+    const D = 180 / Math.PI;
+    const rnd = (v, p) => { const x = Math.round(v * 10 ** p) / 10 ** p; return x === 0 ? 0 : x; };
+    const updates = [];
+    for (const loc of this._groupXformLocals) {
+      const em = this.editMeshes.find((e) => e.index === loc.index);
+      if (!em) continue;
+      const world = new THREE.Matrix4().multiplyMatrices(this._groupPivot.matrixWorld, loc.matrix);
+      const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scale = new THREE.Vector3();
+      world.decompose(pos, quat, scale);
+      em.mesh.position.copy(pos);
+      em.mesh.quaternion.copy(quat);
+      em.mesh.scale.copy(scale);
+      const euler = new THREE.Euler().setFromQuaternion(quat, 'ZYX');
+      updates.push({
+        index: loc.index,
+        pos: [rnd(pos.x, 2), rnd(pos.y, 2), rnd(pos.z, 2)],
+        rot: [rnd(euler.x * D, 2), rnd(euler.y * D, 2), rnd(euler.z * D, 2)],
+        scale: [rnd(scale.x, 3), rnd(scale.y, 3), rnd(scale.z, 3)],
+      });
+    }
+    const primary = this.editMeshes.find((e) => e.index === this.selectedIndex);
+    if (primary && this._outline) {
+      this._outline.position.copy(primary.mesh.position);
+      this._outline.rotation.copy(primary.mesh.rotation);
+      this._outline.scale.copy(primary.mesh.scale);
+    }
+    this.onGroupTransform(updates);
+  }
+
+  endGroupTransform() {
+    const was = !!this._groupXformLocals;
+    this._groupXformLocals = null;
+    if (!was || !this.gizmo) return;
+    const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
+    if (em && !em.lock && this.editActive) { this.gizmo.attach(em.mesh); this.gizmo.setMode(this.transformMode); }
+    else this.gizmo.detach();
   }
 
   setSnap(on) {

@@ -113,6 +113,7 @@ export class App {
     this.viewport.onShapeMove = (i, pos) => this._onShapeMove(i, pos);
     this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
     this.viewport.onTransform = (i, t) => this._onTransform(i, t);
+    this.viewport.onGroupTransform = (updates) => this._onGroupTransform(updates);
     this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
     this.viewport.onSketchComplete = (pts) => this._onSketchComplete(pts);
     window.__forgeExport = { exportSTL, export3MF, export3MFColored, exportOBJ, build3MF: () => this._build3MF() }; // scripting/test hook
@@ -912,6 +913,26 @@ export class App {
     n.pos = pos;
     this._recompileMergedHUD();
     this._pushHistory();
+  }
+
+  // Rigid multi-part gizmo drag — pivot at selection centre (see viewport.beginGroupTransform).
+  _onGroupTransform(updates) {
+    const nodes = this.buildTree.nodes;
+    const host = this.root.querySelector('#part-modal-fields');
+    updates.forEach((u) => {
+      const m = nodes[u.index];
+      if (!m) return;
+      m.pos = u.pos;
+      m.rot = u.rot;
+      m.scale = u.scale;
+      if (!host) return;
+      ['0', '1', '2'].forEach((a) => {
+        const pel = host.querySelector(`input[data-pos="${u.index}:${a}"]`);
+        const rel = host.querySelector(`input[data-rot="${u.index}:${a}"]`);
+        if (pel && document.activeElement !== pel) pel.value = m.pos[+a];
+        if (rel && document.activeElement !== rel) rel.value = m.rot[+a];
+      });
+    });
   }
 
   // gizmo drag: live pos/rot/scale into the node + panel (no recompile yet).

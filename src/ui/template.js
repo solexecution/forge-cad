@@ -213,7 +213,7 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                   </div>
                 </div>
                 <div class="edit-tool-pane" data-ttab="multi" role="tabpanel">
-                  <p class="edit-tool-hint">Pick 2+ parts, then align, group, or array them.</p>
+                  <p class="edit-tool-hint">Pick 2+ parts. <strong>Group</strong> links them for move/rotate. <strong>Combine</strong> sets how their solids merge.</p>
                   <div class="edit-tool-block">
                     <span class="edit-tool-block-title">Align</span>
                     <div class="align-grid" id="alignbar">
@@ -234,12 +234,12 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                   <div class="edit-tool-block">
                     <span class="edit-tool-block-title">Group &amp; combine</span>
                     <div class="tool-chip-grid" id="groupbar">
-                      <button data-group="group" title="Group selection (Ctrl+G)">▣ group</button>
-                      <button data-group="ungroup" title="Ungroup (Ctrl+Shift+G)">▢ ungroup</button>
-                      <button data-gmode="union" title="Join (union)">∪ union</button>
-                      <button data-gmode="subtract" title="Subtract — first part minus the rest">∖ subtract</button>
-                      <button data-gmode="intersect" title="Keep only the overlap">∩ intersect</button>
-                      <button data-gmode="hull" title="Hull — smooth blend">⬭ hull</button>
+                      <button data-group="group" title="Link parts — move, rotate, duplicate and delete as one (Ctrl+G)">▣ group</button>
+                      <button data-group="ungroup" title="Split grouped parts back into separate pieces (Ctrl+Shift+G)">▢ ungroup</button>
+                      <button data-gmode="union" title="Combine mode: join into one solid (default)">∪ union</button>
+                      <button data-gmode="subtract" title="Combine mode: first selected part cuts the rest away">∖ subtract</button>
+                      <button data-gmode="intersect" title="Combine mode: keep only where parts overlap">∩ intersect</button>
+                      <button data-gmode="hull" title="Combine mode: smooth convex wrap around all parts">⬭ hull</button>
                     </div>
                   </div>
                   <div class="edit-tool-block">
