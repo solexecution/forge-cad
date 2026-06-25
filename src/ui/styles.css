@@ -377,8 +377,30 @@ body.view-result #part-card { display: none; }
    hidden; in build mode #pane-code is .hidden (by mode) and the columns show */
 .part-card.dom-code .pcol-main,
 .part-card.dom-code #pcol-edit { display: none; }
-.part-card.dom-code { width: min(440px, calc(100vw - 16px)); }
+.part-card.dom-code {
+  width: var(--code-card-w, 440px);
+  max-width: calc(100vw - var(--rail-w) - 8px);
+  min-width: 280px;
+}
 .part-card #pane-code { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+/* code-mode panel width drag handle (inner edge of the docked sidebar) */
+.card-resize {
+  display: none; position: absolute; top: 0; bottom: 0; width: 14px;
+  cursor: col-resize; touch-action: none; z-index: 6;
+}
+.part-card.dom-code:not(.collapsed) .card-resize { display: block; }
+body.layout-bottom .card-resize { display: none !important; }
+.part-card.dock-right.dom-code .card-resize { left: 0; }
+.part-card.dock-left.dom-code .card-resize { right: 0; }
+.card-resize::before {
+  content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 4px; height: 36px; border-radius: 3px;
+  background: var(--line); box-shadow: -5px 0 0 var(--line), 5px 0 0 var(--line);
+  opacity: .7; transition: opacity .15s, background .15s, box-shadow .15s;
+}
+.card-resize:hover::before, .card-resize.dragging::before {
+  opacity: 1; background: var(--cyan); box-shadow: -5px 0 0 var(--cyan), 5px 0 0 var(--cyan);
+}
 .pedit-head { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-dim); margin-bottom: 8px; }
 .card-tools { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 
@@ -525,15 +547,18 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 .code-toolbar { position: relative; z-index: 2; }
 
 .code-splitter {
-  flex: none; width: 6px; cursor: col-resize; touch-action: none;
+  flex: none; width: 12px; cursor: col-resize; touch-action: none;
   background: transparent; position: relative; align-self: stretch;
 }
-.code-splitter::after {
-  content: ''; position: absolute; top: 12%; bottom: 12%; left: 50%;
-  width: 2px; transform: translateX(-50%); border-radius: 2px;
-  background: var(--line); opacity: .55; transition: opacity .15s, background .15s;
+.code-splitter::before {
+  content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 3px; height: 28px; border-radius: 2px;
+  background: var(--line); box-shadow: -5px 0 0 var(--line), 5px 0 0 var(--line);
+  opacity: .65; transition: opacity .15s, background .15s, box-shadow .15s;
 }
-.code-splitter:hover::after, .code-splitter.dragging::after { opacity: 1; background: var(--cyan); }
+.code-splitter:hover::before, .code-splitter.dragging::before {
+  opacity: 1; background: var(--cyan); box-shadow: -5px 0 0 var(--cyan), 5px 0 0 var(--cyan);
+}
 
 .code-params-pane {
   flex: none; width: var(--params-pane-w, 200px); min-width: 0;

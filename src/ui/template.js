@@ -118,6 +118,7 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
              active mode's content shows; the other is hidden (see _syncCardDomain
              + .part-card.dom-code in styles.css). Result hides the whole card. -->
         <div id="part-card" class="part-card dock-right hidden" role="region" aria-label="Editor and parts">
+          <div id="card-resize" class="card-resize" title="Drag to resize · double-click for full width" aria-hidden="true"></div>
           <div class="card-head" id="card-head">
             <span class="card-grip" title="Drag to move · snaps to either edge">⠿</span>
             <span class="card-title" id="parts-count">Parts</span>
@@ -137,6 +138,7 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                     <span class="code-file-tab on" title="Model source">model source</span>
                     <div class="code-toolbar-acts">
                       <span class="code-kbd-hint" title="Editor shortcuts">Tab · Ctrl+/ comment · Ctrl+D dup · Ctrl+Enter run</span>
+                      <button type="button" class="code-tb-btn" id="strip-comments" title="Remove all // comments from the source">strip //</button>
                       <button type="button" class="code-tb-btn" id="params-show" title="Show parameters (Ctrl+\\)" hidden>params</button>
                     </div>
                   </div>

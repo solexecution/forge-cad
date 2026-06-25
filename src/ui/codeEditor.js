@@ -2,9 +2,12 @@
 
 const LS_WIDTH = 'randr.paramsPaneW';
 const LS_COLLAPSED = 'randr.paramsPaneCollapsed';
+const LS_CODE_CARD_W = 'randr.codeCardW';
 const DEFAULT_PARAMS_W = 200;
 const MIN_PARAMS_W = 140;
-const MAX_PARAMS_W = 340;
+const MIN_CODE_CARD_W = 280;
+const DEFAULT_CODE_CARD_W = 440;
+const MIN_EDITOR_W = 120;
 
 function $(root, sel) { return root.querySelector(sel); }
 
@@ -69,6 +72,27 @@ function replaceRange(value, start, end, text) {
   return value.slice(0, start) + text + value.slice(end);
 }
 
+/** Strip // comments (respecting quoted strings) from every line; drop blank lines. */
+export function removeComments(value) {
+  const out = value.split('\n').map(stripLineComment).filter((l) => l.trim() !== '');
+  return out.join('\n');
+}
+
+function stripLineComment(line) {
+  let inStr = false;
+  let quote = '';
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inStr) {
+      if (c === quote && line[i - 1] !== '\\') inStr = false;
+      continue;
+    }
+    if (c === '"' || c === "'") { inStr = true; quote = c; continue; }
+    if (c === '/' && line[i + 1] === '/') return line.slice(0, i).replace(/\s+$/, '');
+  }
+  return line;
+}
+
 function toggleComment(value, start, end) {
   const ranges = selectedLineRanges(value, start, end);
   const lines = ranges.map(([s, e]) => value.slice(s, e));
@@ -124,6 +148,17 @@ function outdentTab(value, start, end) {
   return { value, caret: start };
 }
 
+function maxCodeCardW() {
+  const rail = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-w')) || 0;
+  return Math.max(MIN_CODE_CARD_W, window.innerWidth - rail - 8);
+}
+
+function maxParamsW(workspace) {
+  if (!workspace) return 400;
+  const w = workspace.getBoundingClientRect().width;
+  return Math.max(MIN_PARAMS_W, w - MIN_EDITOR_W);
+}
+
 /** Wire line gutter, params split pane, and in-editor shortcuts onto App. */
 export function installCodeEditor(app) {
   const root = app.root;
@@ -133,20 +168,44 @@ export function installCodeEditor(app) {
   const splitter = $(root, '#code-splitter');
   const showBtn = $(root, '#params-show');
   const hideBtn = $(root, '#params-hide');
+  const stripBtn = $(root, '#strip-comments');
+  const card = $(root, '#part-card');
+  const cardResize = $(root, '#card-resize');
   const gutter = $(root, '#editor-gutter');
   const lnPre = $(root, '#editor-ln');
   if (!editor || !workspace || !paramsPane) return;
 
   let paramsW = DEFAULT_PARAMS_W;
   let paramsCollapsed = false;
+  let codeCardW = DEFAULT_CODE_CARD_W;
   try {
     const w = parseFloat(localStorage.getItem(LS_WIDTH));
-    if (w >= MIN_PARAMS_W && w <= MAX_PARAMS_W) paramsW = w;
+    const maxP = maxParamsW(workspace);
+    if (w >= MIN_PARAMS_W && w <= maxP) paramsW = w;
     paramsCollapsed = localStorage.getItem(LS_COLLAPSED) === '1';
+    const cw = parseFloat(localStorage.getItem(LS_CODE_CARD_W));
+    if (cw >= MIN_CODE_CARD_W) codeCardW = Math.min(cw, maxCodeCardW());
   } catch { /* quota */ }
+
+  function applyCodeCardWidth() {
+    if (!card) return;
+    codeCardW = Math.min(maxCodeCardW(), Math.max(MIN_CODE_CARD_W, codeCardW));
+    card.style.setProperty('--code-card-w', `${codeCardW}px`);
+    try { localStorage.setItem(LS_CODE_CARD_W, String(Math.round(codeCardW))); } catch { /* quota */ }
+    // params sidebar can't be wider than the workspace
+    const cap = maxParamsW(workspace);
+    if (paramsW > cap) {
+      paramsW = cap;
+      paramsPane.style.setProperty('--params-pane-w', `${paramsW}px`);
+    }
+  }
+
+  applyCodeCardWidth();
+  window.addEventListener('resize', applyCodeCardWidth);
 
   function applyParamsLayout() {
     workspace.classList.toggle('params-collapsed', paramsCollapsed);
+    paramsW = Math.min(maxParamsW(workspace), Math.max(MIN_PARAMS_W, paramsW));
     paramsPane.style.setProperty('--params-pane-w', `${paramsW}px`);
     if (showBtn) showBtn.hidden = !paramsCollapsed;
     if (hideBtn) hideBtn.hidden = paramsCollapsed;
@@ -166,13 +225,63 @@ export function installCodeEditor(app) {
   showBtn?.addEventListener('click', toggleParams);
   hideBtn?.addEventListener('click', toggleParams);
 
+  stripBtn?.addEventListener('click', () => {
+    const before = editor.value;
+    const after = removeComments(before);
+    if (after === before) {
+      app._toast?.('No // comments to remove');
+      return;
+    }
+    applyEdit({ value: after, selStart: 0, selEnd: 0, caret: 0 });
+    app._toast?.('Comments removed — Ctrl+Z to undo');
+  });
+
+  // --- resizable code panel (inner edge of the docked card) ---
+  if (cardResize && card) {
+    let drag = null;
+    const dockSide = () => (card.classList.contains('dock-left') ? 'left' : 'right');
+    const onMove = (e) => {
+      if (!drag) return;
+      const dx = dockSide() === 'right' ? drag.x - e.clientX : e.clientX - drag.x;
+      codeCardW = Math.min(maxCodeCardW(), Math.max(MIN_CODE_CARD_W, drag.w + dx));
+      card.style.setProperty('--code-card-w', `${codeCardW}px`);
+    };
+    const onUp = () => {
+      if (!drag) return;
+      drag = null;
+      cardResize.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      applyCodeCardWidth();
+    };
+    cardResize.addEventListener('pointerdown', (e) => {
+      if (!card.classList.contains('dom-code') || card.classList.contains('collapsed')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      drag = { x: e.clientX, w: codeCardW };
+      cardResize.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      cardResize.setPointerCapture(e.pointerId);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+    cardResize.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      codeCardW = maxCodeCardW();
+      applyCodeCardWidth();
+      app._toast?.('Panel expanded to full width');
+    });
+  }
+
   // --- resizable params sidebar ---
   if (splitter) {
     let drag = null;
     const onMove = (e) => {
       if (!drag) return;
       const dx = drag.side === 'right' ? drag.x - e.clientX : e.clientX - drag.x;
-      paramsW = Math.min(MAX_PARAMS_W, Math.max(MIN_PARAMS_W, drag.w + dx));
+      paramsW = Math.min(maxParamsW(workspace), Math.max(MIN_PARAMS_W, drag.w + dx));
       paramsPane.style.setProperty('--params-pane-w', `${paramsW}px`);
     };
     const onUp = () => {
