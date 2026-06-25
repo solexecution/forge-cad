@@ -149,7 +149,7 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                       <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Model source code"></textarea>
                     </div>
                   </div>
-                  <div id="error" class="error"></div>
+                  <div id="error" class="error" role="alert" tabindex="0" aria-live="polite"></div>
                 </div>
                 <div class="code-splitter" id="code-splitter" title="Drag to resize parameters panel" aria-hidden="true"></div>
                 <aside class="code-params-pane" id="code-params-pane" aria-label="Parameters">

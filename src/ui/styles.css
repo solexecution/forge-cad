@@ -570,6 +570,7 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 }
 .editor-ln .ln { display: block; padding: 0 4px; border-radius: 3px; }
 .editor-ln .ln.active { color: var(--cyan); background: var(--editor-line-active); }
+.editor-ln .ln.error-line { color: var(--red); background: rgba(239, 83, 80, .14); font-weight: 600; }
 
 .editor-wrap {
   position: relative; display: flex; flex-direction: column;
@@ -602,8 +603,23 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
   display: none; font-family: var(--mono); font-size: 12px; line-height: 1.5;
   color: var(--red); background: rgba(239,83,80,.08);
   border: 1px solid rgba(239,83,80,.3); border-radius: 8px; padding: 10px 12px;
+  -webkit-user-select: text; user-select: text; cursor: text;
 }
 .error.show { display: block; }
+.error.has-row { cursor: pointer; }
+.error.has-row:hover { background: rgba(239,83,80,.12); border-color: rgba(239,83,80,.45); }
+.error-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+}
+.error-loc { font-weight: 600; color: var(--red); }
+.error-msg { display: block; margin-top: 4px; color: var(--ink); opacity: .92; }
+.error-hint { display: block; margin-top: 6px; font-size: 11px; color: var(--ink-dim); }
+.error-copy {
+  flex: none; font-family: var(--sans); font-size: 11px; line-height: 1;
+  color: var(--ink-dim); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 8px; cursor: pointer;
+}
+.error-copy:hover { color: var(--ink); border-color: var(--cyan); }
 
 /* params */
 .params { display: flex; flex-direction: column; gap: 10px; }

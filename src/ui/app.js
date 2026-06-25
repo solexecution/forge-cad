@@ -199,14 +199,12 @@ export class App {
 
     const { result, params, error } = compile(source, this.overrides);
 
-    const errEl = this.root.querySelector('#error');
     if (error) {
-      errEl.textContent = error;
-      errEl.classList.add('show');
+      this._showCompileError?.(error);
       this._setStatus('error');
       return;
     }
-    errEl.classList.remove('show');
+    this._showCompileError?.(null);
 
     // Replace the merged model and free the previous one.
     if (this.currentModel && this.currentModel !== result) {
@@ -1276,9 +1274,8 @@ export class App {
   // / cut keeps currentModel + the HUD consistent with recompile (was a divergent fork)
   _recompileMergedHUD() {
     const { result, error } = compile(this._effectiveSource(), this.overrides);
-    const errEl = this.root.querySelector('#error');
-    if (error) { errEl.textContent = error; errEl.classList.add('show'); this._setStatus('error'); return; }
-    errEl.classList.remove('show');
+    if (error) { this._showCompileError?.(error); this._setStatus('error'); return; }
+    this._showCompileError?.(null);
     if (this.currentModel && this.currentModel !== result) {
       try { this.currentModel.delete(); } catch { /* freed */ }
     }

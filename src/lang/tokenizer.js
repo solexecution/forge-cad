@@ -116,7 +116,7 @@ export function tokenize(src) {
 
 export class ForgeError extends Error {
   constructor(message, line, col) {
-    super(line != null ? `Line ${line}:${col} — ${message}` : message);
+    super(line != null ? `Row ${line}, column ${col} — ${message}` : message);
     this.name = 'ForgeError';
     this.line = line;
     this.col = col;

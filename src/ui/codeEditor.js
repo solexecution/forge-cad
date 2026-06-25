@@ -8,6 +8,43 @@ const MAX_PARAMS_W = 340;
 
 function $(root, sel) { return root.querySelector(sel); }
 
+const ERROR_ROW_RE = /^Row (\d+), column (\d+) — (.+)$/s;
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function parseCompileError(msg) {
+  const m = msg.match(ERROR_ROW_RE);
+  if (!m) return { line: null, col: null, message: msg, raw: msg };
+  return { line: +m[1], col: +m[2], message: m[3], raw: msg };
+}
+
+function offsetForLine(value, lineNum) {
+  if (lineNum < 1) return 0;
+  let line = 1;
+  let i = 0;
+  while (line < lineNum && i < value.length) {
+    const n = value.indexOf('\n', i);
+    if (n === -1) return value.length;
+    i = n + 1;
+    line++;
+  }
+  return i;
+}
+
+function scrollEditorToLine(editor, lineNum) {
+  const value = editor.value;
+  const start = offsetForLine(value, lineNum);
+  const end = value.indexOf('\n', start);
+  const lineEnd = end === -1 ? value.length : end;
+  editor.focus();
+  editor.setSelectionRange(start, lineEnd);
+  const lh = parseFloat(getComputedStyle(editor).lineHeight) || 21;
+  const pad = parseFloat(getComputedStyle(editor).paddingTop) || 10;
+  editor.scrollTop = Math.max(0, (lineNum - 3) * lh + pad - editor.clientHeight * 0.25);
+}
+
 function lineRange(value, start, end) {
   const ls = value.lastIndexOf('\n', start - 1) + 1;
   const le = value.indexOf('\n', end);
@@ -161,7 +198,9 @@ export function installCodeEditor(app) {
     });
   }
 
-  // --- line numbers + active line ---
+  let errorLine = null;
+
+  // --- line numbers + active / error line ---
   function updateGutter() {
     if (!lnPre || !gutter) return;
     const value = editor.value;
@@ -169,7 +208,9 @@ export function installCodeEditor(app) {
     const lines = value.split('\n');
     const html = lines.map((_, i) => {
       const n = i + 1;
-      const cls = n === caretLine ? 'ln active' : 'ln';
+      let cls = 'ln';
+      if (n === errorLine) cls += ' error-line';
+      else if (n === caretLine) cls += ' active';
       return `<span class="${cls}">${n}</span>`;
     }).join('\n');
     lnPre.innerHTML = html || '<span class="ln active">1</span>';
@@ -177,6 +218,54 @@ export function installCodeEditor(app) {
   }
 
   app._updateEditorGutter = updateGutter;
+
+  app._setErrorLine = (line) => {
+    errorLine = line;
+    updateGutter();
+    if (line) scrollEditorToLine(editor, line);
+  };
+
+  const errEl = $(root, '#error');
+  if (errEl) {
+    errEl.addEventListener('click', (e) => {
+      if (e.target.closest('.error-copy')) return;
+      if (errorLine) scrollEditorToLine(editor, errorLine);
+    });
+    errEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && errorLine) { e.preventDefault(); scrollEditorToLine(editor, errorLine); }
+    });
+  }
+
+  app._showCompileError = (message) => {
+    if (!errEl) return;
+    if (!message) {
+      errEl.classList.remove('show', 'has-row');
+      errEl.textContent = '';
+      errorLine = null;
+      updateGutter();
+      return;
+    }
+    const parsed = parseCompileError(message);
+    errorLine = parsed.line;
+    updateGutter();
+    if (parsed.line) {
+      errEl.classList.add('has-row');
+      errEl.innerHTML = `<div class="error-head"><span class="error-loc">Row ${parsed.line}, column ${parsed.col}</span><button type="button" class="error-copy" title="Copy error message">Copy</button></div><span class="error-msg">${escapeHtml(parsed.message)}</span><span class="error-hint">Click here or the row number on the left to jump to that line</span>`;
+      errEl.querySelector('.error-copy')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const text = parsed.raw;
+        navigator.clipboard?.writeText(text).then(
+          () => app._toast?.('Error copied'),
+          () => app._toast?.('Could not copy — select the text instead'),
+        );
+      });
+      scrollEditorToLine(editor, parsed.line);
+    } else {
+      errEl.classList.remove('has-row');
+      errEl.textContent = message;
+    }
+    errEl.classList.add('show');
+  };
 
   const syncScroll = () => {
     const pre = $(root, '.editor-hl');
