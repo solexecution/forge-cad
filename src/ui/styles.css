@@ -35,6 +35,10 @@
   --editor-bg:       #12151a;
   --editor-gutter-bg:#181c22;
   --editor-line-active: rgba(77, 208, 225, .08);
+  --editor-fs:       13px;
+  --editor-lh:       20px;
+  --editor-pad-y:    10px;
+  --editor-pad-x:    12px;
   --scroll-thumb:       rgba(154, 163, 173, .30);
   --scroll-thumb-hover: rgba(154, 163, 173, .55);
   --radius:    10px;
@@ -521,7 +525,7 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 }
 .code-toolbar {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  flex: none; margin-bottom: 6px; padding-right: 6px;
+  flex: none; margin-bottom: 8px; padding-right: 6px; flex-wrap: wrap;
 }
 .code-file-tab {
   font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
@@ -532,14 +536,13 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 .code-toolbar-acts { display: flex; align-items: center; gap: 6px; flex: none; }
 .code-kbd-hint {
   font-family: var(--mono); font-size: 9px; letter-spacing: .02em;
-  color: var(--ink-dim); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 160px;
+  color: var(--ink-dim); opacity: .85; white-space: nowrap;
 }
-@media (max-width: 380px) { .code-kbd-hint { display: none; } }
+@media (max-width: 520px) { .code-kbd-hint { display: none; } }
 .code-tb-btn {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
   color: var(--ink-dim); background: var(--btn-bg); border: 1px solid var(--line);
-  border-radius: 6px; padding: 4px 9px; cursor: pointer;
+  border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; flex: none;
 }
 .code-tb-btn:hover { color: var(--cyan); border-color: var(--cyan); }
 .code-tb-btn.on { color: var(--cyan); border-color: var(--cyan); background: var(--editor-line-active); }
@@ -577,43 +580,71 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 
 /* code editor shell: gutter + coloured layer + transparent textarea */
 .editor-shell {
-  flex: 1 1 auto; min-height: 160px; display: flex; min-width: 0;
-  border: 1px solid var(--line); border-radius: var(--radius);
+  flex: 1 1 auto; min-height: 200px; display: flex; min-width: 0;
+  border: 1px solid var(--line); border-radius: 8px;
   background: var(--editor-bg); overflow: hidden;
 }
-.editor-shell:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(77, 208, 225, .15); }
-:root.theme-light .editor-shell:focus-within { box-shadow: 0 0 0 1px rgba(14, 138, 160, .18); }
+.editor-shell:focus-within {
+  border-color: rgba(77, 208, 225, .55);
+  box-shadow: 0 0 0 1px rgba(77, 208, 225, .18), inset 0 1px 0 rgba(255, 255, 255, .03);
+}
+:root.theme-light .editor-shell:focus-within {
+  border-color: rgba(14, 138, 160, .45);
+  box-shadow: 0 0 0 1px rgba(14, 138, 160, .16);
+}
 
 .editor-gutter {
-  flex: none; width: 42px; overflow: hidden; user-select: none;
+  flex: none; min-width: 44px; width: max-content; max-width: 56px;
+  overflow: hidden; user-select: none; cursor: default;
   background: var(--editor-gutter-bg); border-right: 1px solid var(--line);
 }
 .editor-ln {
-  margin: 0; padding: 10px 6px 10px 4px; box-sizing: border-box;
-  font-family: var(--mono); font-size: 13px; line-height: 1.6; letter-spacing: 0;
+  margin: 0; padding: var(--editor-pad-y) 8px var(--editor-pad-y) 6px; box-sizing: border-box;
+  font-family: var(--mono); font-size: var(--editor-fs); line-height: var(--editor-lh);
+  font-variant-numeric: tabular-nums; letter-spacing: 0;
   color: var(--ink-dim); text-align: right; white-space: pre;
 }
-.editor-ln .ln { display: block; padding: 0 4px; border-radius: 3px; }
-.editor-ln .ln.active { color: var(--cyan); background: var(--editor-line-active); }
-.editor-ln .ln.error-line { color: var(--red); background: rgba(239, 83, 80, .14); font-weight: 600; }
+.editor-ln .ln {
+  display: block; height: var(--editor-lh); line-height: var(--editor-lh);
+  padding: 0 6px 0 4px; border-radius: 0; cursor: pointer;
+}
+.editor-ln .ln:hover { color: var(--ink); }
+.editor-ln .ln.active {
+  color: var(--ink); background: var(--editor-line-active);
+  box-shadow: inset 3px 0 0 var(--cyan);
+}
+.editor-ln .ln.error-line {
+  color: var(--red); background: rgba(239, 83, 80, .14); font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--red);
+}
 
 .editor-wrap {
   position: relative; display: flex; flex-direction: column;
   flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden;
 }
-.editor-hl, #editor {
-  margin: 0; box-sizing: border-box; width: 100%;
-  font-family: var(--mono); font-size: 13px; line-height: 1.6; letter-spacing: 0;
-  padding: 10px 12px; border: 0; tab-size: 2;
-  white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;
+.editor-active-line {
+  position: absolute; left: 0; right: 0; top: 0; height: var(--editor-lh);
+  background: var(--editor-line-active); pointer-events: none; z-index: 0;
+  will-change: transform;
 }
-.editor-hl { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: var(--ink); z-index: 0; }
-.editor-hl code { font: inherit; white-space: inherit; }
+.editor-hl, #editor {
+  margin: 0; box-sizing: border-box; min-width: 100%; width: max-content;
+  font-family: var(--mono); font-size: var(--editor-fs); line-height: var(--editor-lh);
+  padding: var(--editor-pad-y) var(--editor-pad-x); border: 0; tab-size: 2;
+  white-space: pre; overflow-wrap: normal; word-break: normal;
+}
+.editor-hl {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  color: var(--ink); z-index: 1; width: 100%;
+}
+.editor-hl code { font: inherit; white-space: inherit; display: block; min-height: 100%; }
 #editor {
-  position: relative; z-index: 1; display: block;
+  position: relative; z-index: 2; display: block;
   flex: 1 1 auto; min-height: 0; overflow: auto; resize: none;
   color: transparent; background: transparent; caret-color: var(--cyan);
+  width: 100%;
 }
+#editor::selection { background: rgba(77, 208, 225, .28); color: transparent; }
 #editor:focus { outline: none; }
 .pane-code .error { flex: none; margin-top: 6px; margin-right: 10px; }
 /* token colours */

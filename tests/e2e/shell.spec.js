@@ -293,3 +293,31 @@ test('code editor: params panel toggles and line gutter renders', async ({ page 
   const lines = await page.locator('#editor-ln .ln').count();
   expect(lines).toBeGreaterThan(3);
 });
+
+test('code editor: line numbers align with code rows', async ({ page }) => {
+  await gotoApp(page);
+  const drift = await page.evaluate(() => {
+    const ed = document.querySelector('#editor');
+    const src = Array.from({ length: 20 }, (_, i) => `translate([${i}, ${i * 2}, ${i}]) { box(${i + 1}, ${i + 2}, ${i + 3}); }`).join('\n');
+    ed.value = src;
+    ed.dispatchEvent(new Event('input', { bubbles: true }));
+    ed.setSelectionRange(0, 0);
+    ed.dispatchEvent(new Event('keyup', { bubbles: true }));
+    const check = (lineNum) => {
+      const ln = document.querySelector(`#editor-ln .ln:nth-child(${lineNum})`);
+      if (!ln) return null;
+      const start = src.split('\n').slice(0, lineNum - 1).join('\n').length + (lineNum > 1 ? 1 : 0);
+      ed.setSelectionRange(start, start);
+      const caretTop = ed.getBoundingClientRect().top + parseFloat(getComputedStyle(ed).paddingTop);
+      const lineH = parseFloat(getComputedStyle(ed).lineHeight);
+      const codeY = caretTop + (lineNum - 1) * lineH;
+      const gutterY = ln.getBoundingClientRect().top;
+      return Math.abs(codeY - gutterY);
+    };
+    return [1, 5, 10, 15, 20].map(check);
+  });
+  for (const d of drift) {
+    expect(d).not.toBeNull();
+    expect(d).toBeLessThan(2); // sub-pixel rounding only
+  }
+});

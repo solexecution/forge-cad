@@ -147,8 +147,9 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                       <pre class="editor-ln" id="editor-ln"></pre>
                     </div>
                     <div class="editor-wrap">
+                      <div class="editor-active-line" id="editor-active-line" aria-hidden="true"></div>
                       <pre class="editor-hl" aria-hidden="true"><code id="editor-code"></code></pre>
-                      <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Model source code"></textarea>
+                      <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Model source code" wrap="off"></textarea>
                     </div>
                   </div>
                   <div id="error" class="error" role="alert" tabindex="0" aria-live="polite"></div>

@@ -36,6 +36,14 @@ function offsetForLine(value, lineNum) {
   return i;
 }
 
+function lineMetrics(editor) {
+  const st = getComputedStyle(editor);
+  return {
+    lh: parseFloat(st.lineHeight) || 20,
+    padY: parseFloat(st.paddingTop) || 10,
+  };
+}
+
 function scrollEditorToLine(editor, lineNum) {
   const value = editor.value;
   const start = offsetForLine(value, lineNum);
@@ -43,9 +51,8 @@ function scrollEditorToLine(editor, lineNum) {
   const lineEnd = end === -1 ? value.length : end;
   editor.focus();
   editor.setSelectionRange(start, lineEnd);
-  const lh = parseFloat(getComputedStyle(editor).lineHeight) || 21;
-  const pad = parseFloat(getComputedStyle(editor).paddingTop) || 10;
-  editor.scrollTop = Math.max(0, (lineNum - 3) * lh + pad - editor.clientHeight * 0.25);
+  const { lh, padY } = lineMetrics(editor);
+  editor.scrollTop = Math.max(0, (lineNum - 3) * lh + padY - editor.clientHeight * 0.25);
 }
 
 function lineRange(value, start, end) {
@@ -173,6 +180,7 @@ export function installCodeEditor(app) {
   const cardResize = $(root, '#card-resize');
   const gutter = $(root, '#editor-gutter');
   const lnPre = $(root, '#editor-ln');
+  const activeBand = $(root, '#editor-active-line');
   if (!editor || !workspace || !paramsPane) return;
 
   let paramsW = DEFAULT_PARAMS_W;
@@ -310,6 +318,18 @@ export function installCodeEditor(app) {
   let errorLine = null;
 
   // --- line numbers + active / error line ---
+  function updateActiveLineBand() {
+    if (!activeBand) return;
+    const value = editor.value;
+    if (!value) { activeBand.style.display = 'none'; return; }
+    activeBand.style.display = 'block';
+    const caretLine = value.slice(0, editor.selectionStart).split('\n').length;
+    const { lh, padY } = lineMetrics(editor);
+    const top = padY + (caretLine - 1) * lh - editor.scrollTop;
+    activeBand.style.transform = `translateY(${top}px)`;
+    activeBand.style.height = `${lh}px`;
+  }
+
   function updateGutter() {
     if (!lnPre || !gutter) return;
     const value = editor.value;
@@ -321,12 +341,20 @@ export function installCodeEditor(app) {
       if (n === errorLine) cls += ' error-line';
       else if (n === caretLine) cls += ' active';
       return `<span class="${cls}">${n}</span>`;
-    }).join('\n');
+    }).join('');
     lnPre.innerHTML = html || '<span class="ln active">1</span>';
     gutter.scrollTop = editor.scrollTop;
+    updateActiveLineBand();
   }
 
   app._updateEditorGutter = updateGutter;
+
+  gutter?.addEventListener('click', (e) => {
+    const el = e.target.closest('.ln');
+    if (!el) return;
+    const n = parseInt(el.textContent, 10);
+    if (n > 0) scrollEditorToLine(editor, n);
+  });
 
   app._setErrorLine = (line) => {
     errorLine = line;
@@ -380,6 +408,7 @@ export function installCodeEditor(app) {
     const pre = $(root, '.editor-hl');
     if (pre) { pre.scrollTop = editor.scrollTop; pre.scrollLeft = editor.scrollLeft; }
     if (gutter) gutter.scrollTop = editor.scrollTop;
+    updateActiveLineBand();
   };
 
   editor.addEventListener('scroll', syncScroll);
