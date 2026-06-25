@@ -1456,6 +1456,9 @@ export class App {
 
   _renderParams() {
     const host = this.root.querySelector('#params');
+    if (!host) return;
+    // Don't rebuild param inputs mid-typing — same keyboard-dismiss issue as build dims.
+    if (host.contains(document.activeElement) && document.activeElement?.matches('input')) return;
     if (this.params.length === 0) {
       host.innerHTML = '<p class="muted">No params in this model. Add <code>param name = value;</code> to get a slider.</p>';
       return;

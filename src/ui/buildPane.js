@@ -34,11 +34,36 @@ class BuildPaneRenderers {
     if (multiEl) multiEl.hidden = total < 2; // multi-select only makes sense with 2+ parts
   }
 
+  // True while the user is typing in the build edit panel — skip tearing down
+  // inputs on recompile or the mobile keyboard dismisses after one digit.
+  _partEditorFocused() {
+    const el = document.activeElement;
+    const panel = this.root.querySelector('#pcol-edit');
+    return !!(el && panel?.contains(el) && el.matches('input, textarea, select'));
+  }
+
+  _updatePartMetrics() {
+    const mEl = this.root.querySelector('#part-modal-metrics');
+    if (!mEl || this.selectedNode < 0 || !this.buildTree.nodes[this.selectedNode]) {
+      if (mEl) mEl.textContent = '—';
+      return;
+    }
+    const mb = this.viewport.shapeBounds ? this.viewport.shapeBounds(this.selectedNode) : null;
+    mEl.textContent = mb
+      ? `${(mb.max[0] - mb.min[0]).toFixed(1)} × ${(mb.max[1] - mb.min[1]).toFixed(1)} × ${(mb.max[2] - mb.min[2]).toFixed(1)} mm`
+      : '—';
+  }
+
   _renderBuildTree() {
     this._renderPartsList(); // compact roster: select · name · hole · remove
     this._updatePartsHeader();
     const host = this.root.querySelector('#part-modal-fields'); // the detail editor lives in the modal
     if (!host) return; // modal not in the DOM yet (e.g. an early call during boot)
+    if (this._partEditorFocused()) {
+      this._updatePartMetrics();
+      this._renderAlignBar();
+      return;
+    }
     host.innerHTML = '';
     if (this.selectedNodes.length >= 2) {
       host.innerHTML = `<p class="muted edit-multi-hint">${this.selectedNodes.length} parts selected — open the <strong>Multi</strong> tab below to align, group, or array them.</p>`;
@@ -50,9 +75,7 @@ class BuildPaneRenderers {
       this._renderAlignBar();
       return;
     }
-    const mEl = this.root.querySelector('#part-modal-metrics');
-    const mb = this.viewport.shapeBounds ? this.viewport.shapeBounds(this.selectedNode) : null;
-    if (mEl) mEl.textContent = mb ? `${(mb.max[0] - mb.min[0]).toFixed(1)} × ${(mb.max[1] - mb.min[1]).toFixed(1)} × ${(mb.max[2] - mb.min[2]).toFixed(1)} mm` : '—';
+    this._updatePartMetrics();
     const KINDS = ADDABLE_KINDS; // the kind picker — single source of truth in primitives.js
     const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
     const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth', 'points']);
@@ -62,7 +85,7 @@ class BuildPaneRenderers {
         return `<label class="bn-text">${f.label}<input type="text" value="${esc(f.value)}" data-field="${idx}:${f.key}" spellcheck="false"></label>`;
       }
       const isCount = COUNT_KEYS.has(f.key);
-      return `<label${isCount ? '' : ' data-unit="mm"'}>${f.label}<input type="number" step="${isCount ? 1 : 0.5}" value="${f.value}" data-field="${idx}:${f.key}"></label>`;
+      return `<label${isCount ? '' : ' data-unit="mm"'}>${f.label}<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" pattern="[0-9]*[.,]?[0-9]*" value="${f.value}" data-field="${idx}:${f.key}"></label>`;
     };
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     [this.selectedNode].forEach((idx) => {
@@ -116,23 +139,23 @@ class BuildPaneRenderers {
         <details class="bn-sec">
           <summary>Position &amp; rotation</summary>
           <div class="bn-fields bn-xyz">
-            <label data-unit="mm">x<input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0"></label>
-            <label data-unit="mm">y<input type="number" step="0.5" value="${node.pos[1]}" data-pos="${idx}:1"></label>
-            <label data-unit="mm">z<input type="number" step="0.5" value="${node.pos[2]}" data-pos="${idx}:2"></label>
-            <label data-unit="°">rx<input type="number" step="15" value="${node.rot[0]}" data-rot="${idx}:0"></label>
-            <label data-unit="°">ry<input type="number" step="15" value="${node.rot[1]}" data-rot="${idx}:1"></label>
-            <label data-unit="°">rz<input type="number" step="15" value="${node.rot[2]}" data-rot="${idx}:2"></label>
+            <label data-unit="mm">x<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[0]}" data-pos="${idx}:0"></label>
+            <label data-unit="mm">y<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[1]}" data-pos="${idx}:1"></label>
+            <label data-unit="mm">z<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[2]}" data-pos="${idx}:2"></label>
+            <label data-unit="°">rx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[0]}" data-rot="${idx}:0"></label>
+            <label data-unit="°">ry<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[1]}" data-rot="${idx}:1"></label>
+            <label data-unit="°">rz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[2]}" data-rot="${idx}:2"></label>
           </div>
         </details>
         ${hasMore ? `<details class="bn-sec">
           <summary>More options</summary>
           ${(supportsClearance(node.kind) || isShellable(node.kind)) ? `<div class="bn-clear">
-            ${supportsClearance(node.kind) ? `<label>fit clearance<input type="number" step="0.05" value="${node.clearance || 0}" data-clear="${idx}"></label>` : ''}
-            ${isShellable(node.kind) ? `<label>wall (hollow)<input type="number" step="0.2" value="${node.hollow || 0}" data-hollow="${idx}"></label>` : ''}
+            ${supportsClearance(node.kind) ? `<label>fit clearance<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.clearance || 0}" data-clear="${idx}"></label>` : ''}
+            ${isShellable(node.kind) ? `<label>wall (hollow)<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.hollow || 0}" data-hollow="${idx}"></label>` : ''}
             <span class="bn-clear-hint">mm · press-fit / hollow shell</span>
           </div>` : ''}
           ${supportsFillet(node.kind) ? `<div class="bn-clear">
-            <label>edge fillet<input type="number" step="0.5" min="0" value="${node.fillet || 0}" data-fillet="${idx}"></label>
+            <label>edge fillet<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.fillet || 0}" data-fillet="${idx}"></label>
             <label class="bn-bevel-lab"><input type="checkbox" data-bevel="${idx}" ${node.bevel ? 'checked' : ''}> bevel</label>
             <span class="bn-clear-hint">mm · rounds edges (✓ = chamfer)</span>
           </div>` : ''}
@@ -182,28 +205,43 @@ class BuildPaneRenderers {
     host.querySelectorAll('[data-clone]').forEach((el) => el.addEventListener('click', () => {
       this._selectNode(+el.dataset.clone, false); this._duplicateSelected();
     }));
+    const numIn = (el) => { const v = parseFloat(String(el.value).replace(',', '.')); return Number.isFinite(v) ? v : null; };
+    const onNumInput = (el, apply) => {
+      const v = numIn(el);
+      if (v == null) return;
+      apply(v);
+      this._scheduleRecompile();
+    };
     host.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
       const [i, key] = el.dataset.field.split(':');
       const n = nodes[+i];
       const f = n.fields.find((x) => x.key === key);
-      f.value = f.type === 'text' ? el.value : parseFloat(el.value);
+      if (f.type === 'text') { f.value = el.value; this._scheduleRecompile(); return; }
+      const v = numIn(el);
+      if (v == null) return;
+      f.value = v;
       if (isSizeField(n.kind, key)) resetScaleOnSizeEdit(n);
       this._scheduleRecompile();
     }));
+    host.querySelectorAll('[data-field], [data-pos], [data-rot], [data-clear], [data-hollow], [data-fillet]').forEach((el) => {
+      el.addEventListener('blur', () => { if (!this._partEditorFocused()) this._renderBuildTree(); });
+    });
     host.querySelectorAll('[data-pos]').forEach((el) => el.addEventListener('input', () => {
-      const [i, a] = el.dataset.pos.split(':'); nodes[+i].pos[+a] = parseFloat(el.value); this._scheduleRecompile();
+      const [i, a] = el.dataset.pos.split(':');
+      onNumInput(el, (v) => { nodes[+i].pos[+a] = v; });
     }));
     host.querySelectorAll('[data-rot]').forEach((el) => el.addEventListener('input', () => {
-      const [i, a] = el.dataset.rot.split(':'); nodes[+i].rot[+a] = parseFloat(el.value); this._scheduleRecompile();
+      const [i, a] = el.dataset.rot.split(':');
+      onNumInput(el, (v) => { nodes[+i].rot[+a] = v; });
     }));
     host.querySelectorAll('[data-clear]').forEach((el) => el.addEventListener('input', () => {
-      nodes[+el.dataset.clear].clearance = parseFloat(el.value) || 0; this._scheduleRecompile();
+      onNumInput(el, (v) => { nodes[+el.dataset.clear].clearance = v; });
     }));
     host.querySelectorAll('[data-hollow]').forEach((el) => el.addEventListener('input', () => {
-      nodes[+el.dataset.hollow].hollow = Math.max(0, parseFloat(el.value) || 0); this._scheduleRecompile();
+      onNumInput(el, (v) => { nodes[+el.dataset.hollow].hollow = Math.max(0, v); });
     }));
     host.querySelectorAll('[data-fillet]').forEach((el) => el.addEventListener('input', () => {
-      nodes[+el.dataset.fillet].fillet = Math.max(0, parseFloat(el.value) || 0); this._scheduleRecompile();
+      onNumInput(el, (v) => { nodes[+el.dataset.fillet].fillet = Math.max(0, v); });
     }));
     host.querySelectorAll('[data-bevel]').forEach((el) => el.addEventListener('change', () => {
       nodes[+el.dataset.bevel].bevel = el.checked; this._scheduleRecompile();
