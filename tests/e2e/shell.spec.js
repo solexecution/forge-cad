@@ -23,26 +23,11 @@ import {
   collectConsoleErrors,
 } from './_helpers.js';
 
-// Open the "More" tools group and wait for it. These tools (measure / layers /
-// cut …) now live in the customizable toolbar's default "More" group (.tb-group),
-// not the old #tools-more menu.
-async function openToolsMore(page) {
-  await page.evaluate(() => {
-    const groups = [...document.querySelectorAll('#tools-body .tb-group')];
-    const more = groups.find((el) => el.querySelector('button')?.title === 'More') || groups[0];
-    more?.querySelector('button')?.click();
-  });
-  await page.waitForFunction(
-    () => !!document.querySelector('#tools-body .tb-group.open'),
-    null,
-    { timeout: 5000 },
-  );
-}
-
-// Click a control by firing its real bound click handler. The ⋯ menu-pop opens
-// downward and its lower items (cut / layers) can fall below the small headless
-// viewport, so a geometric click flakes; .click() on the element exercises the
-// exact same wired handler without the pixel hit-test. Asserts the node exists.
+// Click a control by firing its real bound click handler. A tool low on the tall
+// floating bar can fall below the small headless viewport, so a geometric click
+// flakes; .click() on the element exercises the exact same wired handler without
+// the pixel hit-test. Asserts the node exists. (Every tool is a top-level button
+// now — the default "More" group is gone.)
 async function clickEl(page, selector) {
   const ok = await page.evaluate((sel) => {
     const el = document.querySelector(sel);
@@ -160,44 +145,39 @@ test('theme toggle flips randr.theme and the html.theme-light class', async ({ p
   await expect.poll(readTheme).toEqual(start);
 });
 
-test('measure toggle (in the ⋯ menu) flips app.measureMode', async ({ page }) => {
-  await gotoApp(page); // measure is Pro-only; pro is seeded
-  await openToolsMore(page);
+test('measure toggle (toolbar button) flips app.measureMode', async ({ page }) => {
+  await gotoApp(page);
 
   expect(await page.evaluate(() => !!window.__forgeApp.measureMode)).toBe(false);
   await clickEl(page, '#v-measure');
   await page.waitForFunction(() => window.__forgeApp.measureMode === true, null, { timeout: 5000 });
 
-  await openToolsMore(page); // menu closed itself after the click — reopen
   await clickEl(page, '#v-measure');
   await page.waitForFunction(() => window.__forgeApp.measureMode === false, null, { timeout: 5000 });
 });
 
-test('layers toggle (in the ⋯ menu) reveals #layer-bar', async ({ page }) => {
+test('layers toggle (toolbar button) reveals #layer-bar', async ({ page }) => {
   await gotoApp(page);
   await ensureBuildMode(page);
   await addShape(page, 'box'); // need geometry to slice into layers
   const bar = page.locator('#layer-bar');
   await expect(bar).toBeHidden();
 
-  await openToolsMore(page);
   await clickEl(page, '#v-layers');
   await expect(bar).toBeVisible({ timeout: 10000 });
   await expect.poll(() => page.evaluate(() => !!window.__forgeApp._layerMode)).toBe(true);
 });
 
-test('cut-in-half toggle (in the ⋯ menu) flips app.printCut', async ({ page }) => {
+test('cut-in-half toggle (toolbar button) flips app.printCut', async ({ page }) => {
   await gotoApp(page);
   await ensureBuildMode(page);
   await addShape(page, 'box'); // give the cut something to act on
   expect(await page.evaluate(() => window.__forgeApp.printCut)).toBe(0);
 
-  await openToolsMore(page);
   await clickEl(page, '#v-cut');
   await page.waitForFunction(() => window.__forgeApp.printCut > 0, null, { timeout: 10000 });
   expect(await page.evaluate(() => window.__forgeApp.printCut)).toBeGreaterThan(0);
 
-  await openToolsMore(page);
   await clickEl(page, '#v-cut');
   await page.waitForFunction(() => window.__forgeApp.printCut === 0, null, { timeout: 10000 });
 });

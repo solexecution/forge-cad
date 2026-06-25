@@ -14,31 +14,32 @@ describe('migrateToolbar', () => {
     for (const bad of [null, undefined, {}, { layout: 'nope' }, { layout: [] }, 42]) {
       const tb = migrateToolbar(bad);
       expect(tb.version).toBe(TOOLBAR_VERSION);
-      expect(tb.dock).toBe('left');
+      expect(tb.dock).toBe('dodge');
       expect(Array.isArray(tb.layout)).toBe(true);
       expect(has(tb.layout, 'rail-home')).toBe(true);     // a stock tool is present
       expect(has(tb.layout, 'v-quality')).toBe(true);
     }
   });
 
-  it('upgrades a pre-versioned (v1) blob by surfacing every tool added since', () => {
+  it('resets a pre-versioned (v1) blob to the current default bar', () => {
     const saved = { dock: 'left', x: 80, y: 110, layout: [{ type: 'tool', id: 'rail-home' }] };
-    const tb = migrateToolbar(saved); // no version field → treated as v1
-    expect(has(tb.layout, 'v-quality')).toBe(true);     // v3 step
+    const tb = migrateToolbar(saved); // no version field → v1 (< 6) → adopt the new default
+    expect(has(tb.layout, 'v-quality')).toBe(true);     // the default bar is restored
     expect(tb.version).toBe(TOOLBAR_VERSION);
   });
 
-  it('upgrades a v2 blob by surfacing the v3 tool, preserving placement', () => {
+  it('adopts the v6 default (float, every tool a button) for any pre-v6 blob', () => {
     const saved = { version: 2, dock: 'right', x: 5, y: 5, layout: [{ type: 'tool', id: 'rail-home' }] };
     const tb = migrateToolbar(saved);
+    expect(tb.dock).toBe('dodge');                       // v6 floats opposite the parts card
     expect(has(tb.layout, 'v-quality')).toBe(true);
-    expect(tb.dock).toBe('right');                       // saved placement preserved
+    expect(tb.layout.every((e) => e.type === 'tool')).toBe(true); // no default group — all icons shown
   });
 
-  it('prunes the removed mode/view/panel toggles from an older saved layout', () => {
-    // v4 dropped view-mode-toggle + mode-toggle; v5 dropped panel-toggle (all now on
-    // the top-bar control). A blob that still lists them must come back without them.
-    const saved = { version: 3, layout: [
+  it('prunes ids for removed tools (the old mode/view/panel toggles) on a current blob', () => {
+    // view-mode-toggle / mode-toggle / panel-toggle were removed (all on the top-bar
+    // control now); a blob that still lists them must come back without them.
+    const saved = { version: TOOLBAR_VERSION, layout: [
       { type: 'tool', id: 'rail-home' },
       { type: 'tool', id: 'view-mode-toggle' },
       { type: 'tool', id: 'panel-toggle' },

@@ -47,23 +47,33 @@ const TOOLBAR_TOOLS = [
   { id: 'v-cut', glyph: '✂', label: 'Cut in half', title: 'Cut in half', cat: 'Inspect & print' },
   { id: 'v-quality', glyph: '◕', label: 'Curve quality', title: 'Curve quality: Smooth — tap to cycle', cat: 'View' },
 ];
+// Default: every tool is its own button (no "More" group) so the whole kit is
+// visible at a glance. Users can still group / hide tools via the ✎ modal.
 const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'rail-home' },
   { type: 'tool', id: 'v-grid' },
   { type: 'tool', id: 'v-snap' },
   { type: 'tool', id: 'v-theme' },
-  { type: 'group', gid: 'g-more', label: 'More', glyph: '⋯', items: ['v-mmgrid', 'v-wire', 'v-measure', 'v-layers', 'v-overhang', 'v-orient', 'v-fit-plate', 'v-cut'] },
+  { type: 'tool', id: 'v-mmgrid' },
+  { type: 'tool', id: 'v-wire' },
+  { type: 'tool', id: 'v-measure' },
+  { type: 'tool', id: 'v-layers' },
+  { type: 'tool', id: 'v-overhang' },
+  { type: 'tool', id: 'v-orient' },
+  { type: 'tool', id: 'v-fit-plate' },
+  { type: 'tool', id: 'v-cut' },
   { type: 'tool', id: 'v-quality' },
 ];
 
 // Bump when the default layout gains a tool, and add a matching step in
 // migrateToolbar so older saved layouts surface it. Pre-versioned blobs read as v1.
 // (Removing a tool needs no step — migrate prunes ids not in KNOWN_IDS.)
-export const TOOLBAR_VERSION = 5;
+export const TOOLBAR_VERSION = 6;
 const KNOWN_IDS = new Set(TOOLBAR_TOOLS.map((t) => t.id));
 
 function defaultToolbarState() {
-  return { version: TOOLBAR_VERSION, dock: 'left', x: 80, y: 110, layout: JSON.parse(JSON.stringify(TOOLBAR_DEFAULT)) };
+  // 'dodge' = floats opposite the parts card (placed by CSS, like the nav cube)
+  return { version: TOOLBAR_VERSION, dock: 'dodge', x: 80, y: 110, layout: JSON.parse(JSON.stringify(TOOLBAR_DEFAULT)) };
 }
 
 // The single place that brings a persisted toolbar blob (any older version, or
@@ -76,16 +86,16 @@ export function migrateToolbar(saved) {
     return defaultToolbarState();
   }
   const version = Number.isInteger(saved.version) ? saved.version : 1;
-  let layout = saved.layout
+  // v6 overhauled the default bar — every tool shown as a button, floating
+  // opposite the parts card — so adopt the new default wholesale for any older blob.
+  if (version < 6) return defaultToolbarState();
+  const layout = saved.layout
     .map((e) => (e.type === 'group' ? { ...e, items: (e.items || []).filter((id) => KNOWN_IDS.has(id)) } : e))
     .filter((e) => e.type === 'group' || KNOWN_IDS.has(e.id));
-  const has = (id) => layout.some((e) => (e.type === 'group' ? (e.items || []).includes(id) : e.id === id));
-  const surface = (...ids) => ids.forEach((id) => { if (KNOWN_IDS.has(id) && !has(id)) layout.push({ type: 'tool', id }); });
-  if (version < 3) surface('v-quality');                  // v3: curve-quality moved from the gear menu to a bar button
-  // v4 dropped view-mode-toggle + mode-toggle; v5 dropped panel-toggle — all now on the top-bar control (pruned above)
+  // future: surface tools added after v6 here (bump TOOLBAR_VERSION + push the id)
   return {
     version: TOOLBAR_VERSION,
-    dock: saved.dock === 'right' || saved.dock === 'float' ? saved.dock : 'left',
+    dock: ['right', 'float', 'dodge', 'left'].includes(saved.dock) ? saved.dock : 'dodge',
     x: Number.isFinite(saved.x) ? saved.x : 80,
     y: Number.isFinite(saved.y) ? saved.y : 110,
     layout,
@@ -245,8 +255,12 @@ export class Toolbar {
   _applyDock() {
     const el = this._el;
     if (!el) return;
-    el.classList.remove('dock-left', 'dock-right', 'float');
-    if (this.dock === 'float') {
+    el.classList.remove('dock-left', 'dock-right', 'float', 'dodge');
+    if (this.dock === 'dodge') {
+      // float, auto-placed opposite the parts card by CSS (.stage.cardleft/right)
+      el.classList.add('float', 'dodge');
+      el.style.left = el.style.top = el.style.right = el.style.bottom = '';
+    } else if (this.dock === 'float') {
       el.classList.add('float');
       el.style.left = `${this.x}px`; el.style.top = `${this.y}px`; el.style.right = 'auto'; el.style.bottom = 'auto';
     } else {
@@ -368,7 +382,11 @@ export class Toolbar {
     if (g?.type === 'group') { this.layout.splice(i, 1); this._tbApply(); } // its tools drop to Off
   }
 
-  _tbReset() { this.layout = JSON.parse(JSON.stringify(TOOLBAR_DEFAULT)); this._tbApply(); }
+  _tbReset() {
+    this.layout = JSON.parse(JSON.stringify(TOOLBAR_DEFAULT));
+    this.dock = 'dodge'; this._applyDock(); // back to floating opposite the card
+    this._tbApply();
+  }
 
   _renderModal() {
     const body = this.root.querySelector('#toolbar-edit-body');
@@ -385,7 +403,7 @@ export class Toolbar {
       const t = this._tbTool(id) || { glyph: '?', label: id };
       return `<div class="tbm-row" data-id="${id}"><span class="tbm-ic">${t.glyph}</span><span class="tbm-lab">${esc(t.label)}</span>${sel(id, current)}</div>`;
     };
-    let h = '<p class="tbm-hint">Drag the toolbar by its ⠿ grip to move it (it snaps to a side). Set each tool as a button, put it in a menu group, or turn it off.</p>';
+    let h = '<p class="tbm-hint">The bar floats opposite the parts panel by default — drag its ⠿ grip to move it (it snaps to a side); Reset returns it to floating. Set each tool as a button, put it in a menu group, or turn it off.</p>';
     h += '<div class="tbm-sec">On the bar</div><div class="tbm-list">';
     L.forEach((e, i) => {
       const mv = `<span class="tbm-mv"><button type="button" data-mv="up" data-i="${i}" title="Move up">↑</button><button type="button" data-mv="dn" data-i="${i}" title="Move down">↓</button></span>`;

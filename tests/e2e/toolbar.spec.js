@@ -10,7 +10,7 @@ test('toolbar floats, docks to an edge, and persists', async ({ page }) => {
   await gotoApp(page);
 
   const tools = page.locator('#tools');
-  await expect(tools).toHaveClass(/dock-left/); // default
+  await expect(tools).toHaveClass(/dodge/); // default: floats opposite the parts card
 
   const gb = await page.locator('#tools-grip').boundingBox();
   const vw = await page.evaluate(() => window.innerWidth);
@@ -32,30 +32,23 @@ test('toolbar floats, docks to an edge, and persists', async ({ page }) => {
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
-test('toolbar renders from layout, groups open, relocated tools still work', async ({ page }) => {
+test('toolbar shows every tool as a button by default; relocated tools still fire', async ({ page }) => {
   const errors = collectConsoleErrors(page);
   await gotoApp(page);
   await ensureBuildMode(page);
 
-  for (const id of ['rail-home', 'v-grid', 'v-snap', 'v-theme']) {
-    await expect(page.locator(`#tools-body > #${id}`)).toHaveCount(1); // top-level buttons
+  // every tool is its own top-level button — nothing hidden in a default group
+  for (const id of ['rail-home', 'v-grid', 'v-snap', 'v-theme', 'v-mmgrid', 'v-wire', 'v-measure', 'v-layers', 'v-overhang', 'v-orient', 'v-fit-plate', 'v-cut', 'v-quality']) {
+    await expect(page.locator(`#tools-body > #${id}`)).toHaveCount(1);
   }
-  // the curve-quality control is a top-level button (the gear dropdown is gone)
-  await expect(page.locator('#tools-body > #v-quality')).toHaveCount(1);
+  await expect(page.locator('#tools-body .tb-group')).toHaveCount(0); // no default "More" group
   // the code panel + mode toggles left the floating bar for the top-bar control
   await expect(page.locator('#tools-body > #panel-toggle, #tools-body > #mode-toggle')).toHaveCount(0);
 
-  const group = page.locator('#tools-body .tb-group');
-  await expect(group).toHaveCount(1); // default "More" group
-  await expect(group.locator('#v-measure')).toHaveCount(1); // print tools live inside it
-
-  // relocated tool inside a group still fires
-  await group.locator('.rail-btn').first().click();
-  await expect(group).toHaveClass(/open/);
-  await group.locator('#v-measure').click();
+  // a re-parented tool keeps its App-bound handler
+  await page.locator('#tools-body > #v-measure').click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.measureMode)).toBe(true);
 
-  // relocated top-level tool still fires
   const before = await page.evaluate(() => document.querySelector('#v-grid').classList.contains('on'));
   await page.locator('#tools-body > #v-grid').click();
   await expect
@@ -104,7 +97,8 @@ test('customize modal edits the bar and persists', async ({ page }) => {
   await page.click('#tools-edit');
   await page.click('#toolbar-reset');
   await expect(page.locator('#tools-body > #v-theme')).toHaveCount(1);
-  expect(await page.evaluate(() => window.__forgeApp.toolbar.layout.some((e) => e.gid === 'g-more'))).toBe(true);
+  // reset restores the all-buttons default (every entry is a tool, no groups)
+  expect(await page.evaluate(() => window.__forgeApp.toolbar.layout.every((e) => e.type === 'tool'))).toBe(true);
 
   expect(errors, errors.join('\n')).toEqual([]);
 });
@@ -127,8 +121,17 @@ test('an empty group is not shown on the bar (no stranded box)', async ({ page }
 });
 
 test('an opened group is a compact icon grid, not a tall text list', async ({ page }) => {
-  await gotoApp(page); // pro → the default "More" group has all 8 print tools
+  await gotoApp(page);
   await ensureBuildMode(page);
+  // group some print tools (the default bar shows them as standalone buttons now)
+  await page.evaluate(() => {
+    const a = window.__forgeApp;
+    a.toolbar.layout = [
+      { type: 'tool', id: 'rail-home' },
+      { type: 'group', gid: 'gx', label: 'More', glyph: '⋯', items: ['v-measure', 'v-layers', 'v-overhang', 'v-cut'] },
+    ];
+    a.toolbar.render();
+  });
   const group = page.locator('#tools-body .tb-group');
   await group.locator('.rail-btn').first().click();
   await expect(group).toHaveClass(/open/);
@@ -140,6 +143,10 @@ test('an opened group is a compact icon grid, not a tall text list', async ({ pa
   // and the popup stays compact rather than a tall list that overflows the viewport
   const h = await pop.evaluate((el) => el.getBoundingClientRect().height);
   expect(h).toBeLessThan(220);
+
+  // a tool inside the group still fires
+  await pop.locator('#v-measure').click();
+  await expect.poll(() => page.evaluate(() => window.__forgeApp.measureMode)).toBe(true);
 });
 
 test('the top-bar segmented control switches code/build; the old bar toggles are gone', async ({ page }) => {

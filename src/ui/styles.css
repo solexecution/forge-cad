@@ -143,11 +143,20 @@ body {
 .toolbar.dock-left  { top: 220px; left: 8px; right: auto; }
 .toolbar.dock-right { top: 220px; right: 8px; left: auto; }
 .toolbar.float { /* top/left come from inline styles set while dragging */ }
+/* dodge (the default): floats and sits OPPOSITE the parts card (like the nav cube),
+   placed by the stage's card-dock class; falls back to the left when no side dock */
+.toolbar.dodge { top: 220px; left: 12px; right: auto; bottom: auto; }
+.stage.cardleft  .toolbar.dodge { left: auto; right: 12px; }  /* card docked left → bar right */
+.stage.cardright .toolbar.dodge { left: 12px;  right: auto; } /* card docked right → bar left */
 .toolbar-grip { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; cursor: move; touch-action: none; user-select: none; padding: 1px 1px 2px; }
 .toolbar-grip .grip-dots { color: var(--ink-dim); font-size: 12px; line-height: 1; letter-spacing: -2px; pointer-events: none; }
 .toolbar-edit { width: 22px; height: 20px; display: grid; place-items: center; font-size: 12px; color: var(--ink-dim); background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
 .toolbar-edit:hover { color: var(--cyan); border-color: var(--line); }
-.toolbar-body { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.toolbar-body { display: flex; flex-direction: column; flex-wrap: wrap; align-items: center; align-content: flex-start; gap: 5px; max-height: calc(100vh - 256px); }
+/* when the bar hugs the right edge, extra columns must grow leftward (toward
+   centre) so they never run off the right of the screen */
+.toolbar.dock-right .toolbar-body,
+.stage.cardleft .toolbar.dodge .toolbar-body { flex-wrap: wrap-reverse; }
 .tb-group { position: relative; }
 .tb-group .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 168px; }
 /* docked to the right edge → group menus open to the LEFT so they stay on-screen */
