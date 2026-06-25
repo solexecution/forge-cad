@@ -149,25 +149,22 @@ test('an opened group is a compact icon grid, not a tall text list', async ({ pa
   await expect.poll(() => page.evaluate(() => window.__forgeApp.measureMode)).toBe(true);
 });
 
-test('the top-bar segmented control switches code/build; the old bar toggles are gone', async ({ page }) => {
-  await gotoApp(page); // pro, build
+test('the sidebar code/build segment switches modes; old top-bar mode segments are gone', async ({ page }) => {
+  await gotoApp(page);
   await ensureBuildMode(page);
 
-  // the floating-bar mode + view toggles were replaced by the top-bar control
-  await expect(page.locator('#mode-toggle, #view-mode-toggle')).toHaveCount(0);
+  await expect(page.locator('#mode-toggle, #view-mode-toggle, #mode-seg, #seg-code, #seg-build, #seg-result')).toHaveCount(0);
+  await expect(page.locator('#workspace-toggle')).toBeVisible();
 
-  const code = page.locator('#seg-code');
-  const build = page.locator('#seg-build');
-  await expect(page.locator('#mode-seg')).toBeVisible();
+  const code = page.locator('#card-mode-code');
+  const build = page.locator('#card-mode-build');
 
-  // the active segment fills (.on); switching flips both the mode and the highlight
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('build');
   await expect(build).toHaveClass(/on/);
 
   await code.click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('code');
   await expect(code).toHaveClass(/on/);
-  await expect(build).not.toHaveClass(/on/);
 
   await build.click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('build');

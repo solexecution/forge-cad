@@ -189,21 +189,12 @@ class EventBindings {
         this._applyCardLayout();
         this._saveCardDock();
       };
-      // collapse / reveal the whole sidebar — it slides off whichever edge it's
-      // docked to, leaving a reopen tab on that edge.
-      const setCardCollapsed = (c) => {
-        this._cardCollapsed = c;
-        card.classList.toggle('collapsed', c);
-        this._applyCardLayout();
-        this._saveCardDock();
-      };
-      this._setCardCollapsed = setCardCollapsed;
       // the parts list is a docked sidebar — left by default; drag the header (or
       // the ▣ button) to snap it to the other edge. Older 'float' state → left.
       let savedDock = null;
       try { savedDock = JSON.parse(localStorage.getItem('randr.cardDock')); } catch { /* ignore */ }
       applyDock(savedDock?.mode === 'left' ? 'left' : 'right'); // editing docks right by default
-      setCardCollapsed(!!savedDock?.collapsed);
+      this._setCardCollapsed(!!savedDock?.collapsed);
 
       let sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
       const onMove = (e) => {
@@ -234,9 +225,7 @@ class EventBindings {
       this.root.querySelector('#card-snap')?.addEventListener('click', () => {
         applyDock(this._cardDock === 'left' ? 'right' : 'left');
       });
-      // collapse button tucks the whole sidebar away; the reopen tab brings it back
-      this.root.querySelector('#card-min')?.addEventListener('click', () => setCardCollapsed(true));
-      // (show/hide from the top bar is the ◨ control → App._toggleSidebar)
+      this.root.querySelector('#card-min')?.addEventListener('click', () => this._toggleSidebar());
     }
 
     // ── unified panel: fold the Add gallery + settings into their tabs ──
@@ -349,14 +338,11 @@ class EventBindings {
         : 'Cut removed — back to editing.');
     });
 
-    // top-bar cluster: code | build | result (mode-preserving result preview, see
-    // App._setWorkspace) + a side-panel toggle that hides whichever sidebar the
-    // current mode shows (code panel in code, parts inspector in build/result).
-    $('#mode-seg')?.addEventListener('click', (e) => {
-      const opt = e.target.closest('.modeseg-opt');
-      if (!opt) return;
-      if (opt.dataset.action === 'panel') this._toggleSidebar();
-      else if (opt.dataset.view) this._setWorkspace(opt.dataset.view);
+    $('#workspace-toggle')?.addEventListener('click', () => this._toggleSidebar());
+
+    $('#card-mode-seg')?.addEventListener('click', (e) => {
+      const opt = e.target.closest('.card-mode-opt');
+      if (opt?.dataset.mode) this._setAuthoringMode(opt.dataset.mode);
     });
 
     // align toolbar (appears when 2+ shapes are selected)

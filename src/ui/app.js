@@ -32,12 +32,11 @@ import gcodeHelp from '../help/gcode.md?raw';
 import { ProjectStore } from './projectStore.js';
 import { featuresHelpHTML } from './featuresHelp.js';
 
-// The ◨ side-panel toggle's icon, swapped by state so it reads at a glance:
-// SHOWN = a docked panel filled on the right + a › (collapse) chevron;
-// HIDDEN = an empty frame + a ‹ (expand) chevron. Colour (cyan when shown, dim
-// when hidden) comes from the button via currentColor.
-const PANEL_ICON_SHOWN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><rect x="13.5" y="6.5" width="6" height="11" rx="1" fill="currentColor" stroke="none"/><path d="M8 9.5 L11 12 L8 14.5"/></svg>';
-const PANEL_ICON_HIDDEN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M15.5 9.5 L12.5 12 L15.5 14.5"/></svg>';
+// Top-bar workspace toggle: icon reflects what clicking will do next.
+// Sidebar open (edit) → cube icon = "preview result, hide panel".
+// Sidebar hidden (preview) → panel icon = "show panel, edit".
+const WORKSPACE_ICON_TO_PREVIEW = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 20 8v8l-8 4.5L4 16V8z"/><path d="M12 12 20 8M12 12V20.5M12 12 4 8"/></svg>';
+const WORKSPACE_ICON_TO_EDIT = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><rect x="13.5" y="6.5" width="6" height="11" rx="1" fill="currentColor" stroke="none"/><path d="M15.5 9.5 L12.5 12 L15.5 14.5"/></svg>';
 
 // Round the corners of a closed polygon by radius r (tessellated arcs), so a
 // drawn sketch can have curved/organic edges. Clamps r per-corner to the
@@ -137,7 +136,7 @@ export class App {
     this.toolbar = new Toolbar(this.root);
     this.toolbar.onQualityChange = (lvl) => { this._setQuality(lvl.v); this._toast(`Curve quality: ${lvl.name}`); };
     this.toolbar.init({ mode: this.mode, curveQuality: this.curveQuality });
-    this._syncModeSeg(); // reflect the initial workspace on the top-bar control
+    this._syncWorkspaceUI();
   }
 
   // Reflect the live mode + curve-quality on the toolbar's shell buttons.
@@ -310,64 +309,79 @@ export class App {
     }
   }
 
-  // Toggle the build view: 'edit' (parts + result ghost) vs 'result' (the
-  // combined solid). The toggle is how you get back to editing — no separate
-  // enter-group step needed.
-  _setViewMode(mode) {
-    this.viewMode = mode;
-    this._syncModeSeg(); // toggles body.view-result → CSS hides the editing panel in either mode
-    if (this.mode !== 'build') return;
-    if (mode === 'result') {
+  // Sidebar visible = edit; hidden = result preview. One control, both modes.
+  _setSidebarOpen(open) {
+    const card = this.root.querySelector('#part-card');
+    this.viewMode = open ? 'edit' : 'result';
+    this._cardCollapsed = !open;
+    if (card) card.classList.toggle('collapsed', !open);
+    document.body.classList.toggle('view-result', !open);
+
+    if (this.mode === 'build') {
+      if (open) {
+        this.viewport.setEditMode(true);
+        this._renderEditShapes();
+        this.viewport.setGhost(this._wantGhost() ? this.currentModel : null);
+      } else {
+        this.viewport.setEditMode(false);
+        this._renderResult();
+        this.viewport.setGhost(null);
+      }
+    } else if (!open) {
       this.viewport.setEditMode(false);
       this._renderResult();
       this.viewport.setGhost(null);
-    } else {
-      this.viewport.setEditMode(true);
-      this._renderEditShapes();
-      this.viewport.setGhost(this._wantGhost() ? this.currentModel : null);
     }
+
+    this._applyCardLayout();
+    this._syncWorkspaceUI();
+    this._saveCardDock();
   }
 
-  // The top-bar code / build / result control. code & build are the two
-  // authoring modes; result is a *preview* of the merged solid that preserves
-  // the mode you're in — tapping code or build returns to that editor — so it
-  // never triggers the lossy code<->build conversion _switchMode does. (In code
-  // mode the viewport already shows the merged solid; result just hides the
-  // source panel for a clean look, via the body.view-result class.)
-  _setWorkspace(view) {
-    if (view === 'result') {
-      if (this.viewMode !== 'result') this._setViewMode('result');
-    } else {
-      if (this.viewMode === 'result') this._setViewMode('edit'); // leave the preview first
-      this._switchMode(view); // no-op if already in this mode; may refuse (and stay) if code can't lift
-    }
-    this._syncModeSeg();
+  _setCardCollapsed(collapsed) {
+    this._setSidebarOpen(!collapsed);
   }
 
-  // Reflect the live workspace on the top-bar segmented control + the
-  // result-preview body class. The selected segment is derived: result wins when
-  // the view is the merged-solid preview, else it's the authoring mode.
-  _syncModeSeg() {
-    const view = this.viewMode === 'result' ? 'result' : this.mode; // 'code' | 'build' | 'result'
-    document.body.classList.toggle('view-result', view === 'result');
-    this.root.querySelectorAll('#mode-seg .modeseg-opt[data-view]').forEach((b) => {
-      const on = b.dataset.view === view;
+  // Toggle the build view: 'edit' (parts + result ghost) vs 'result' (the
+  // combined solid). Kept for print-prep and project restore — maps to sidebar.
+  _setViewMode(mode) {
+    this._setSidebarOpen(mode === 'edit');
+  }
+
+  // Code / Build switch inside the sidebar (never flips preview state).
+  _setAuthoringMode(mode) {
+    if (mode !== 'code' && mode !== 'build') return;
+    if (this.viewMode === 'result') this._setSidebarOpen(true);
+    this._switchMode(mode);
+    this._syncCardModeSeg();
+  }
+
+  // Top-bar toggle + card « : preview ⟷ edit.
+  _toggleSidebar() {
+    this._setSidebarOpen(this.viewMode === 'result');
+  }
+
+  _syncCardModeSeg() {
+    this.root.querySelectorAll('#card-mode-seg .card-mode-opt').forEach((b) => {
+      const on = b.dataset.mode === this.mode;
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    // the 4th control is an independent toggle (not a mode): lit while the unified
-    // card (editor in code, parts inspector in build) is open
-    const panelBtn = this.root.querySelector('#seg-panel');
-    if (panelBtn) {
-      const card = this.root.querySelector('#part-card');
-      const open = !!card && !card.classList.contains('hidden') && !this._cardCollapsed;
-      panelBtn.classList.toggle('on', open);
-      panelBtn.innerHTML = open ? PANEL_ICON_SHOWN : PANEL_ICON_HIDDEN; // state-aware glyph
-      panelBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
-      const label = open ? 'Hide the side panel' : 'Show the side panel';
-      panelBtn.setAttribute('aria-label', label);
-      panelBtn.title = label;
+  }
+
+  // Reflect sidebar open/closed on the top-bar workspace toggle.
+  _syncWorkspaceUI() {
+    const editing = this.viewMode === 'edit';
+    const btn = this.root.querySelector('#workspace-toggle');
+    if (btn) {
+      btn.classList.toggle('on', editing);
+      btn.innerHTML = editing ? WORKSPACE_ICON_TO_PREVIEW : WORKSPACE_ICON_TO_EDIT;
+      btn.setAttribute('aria-pressed', editing ? 'true' : 'false');
+      const label = editing ? 'Preview result (hide panel)' : 'Edit model (show panel)';
+      btn.setAttribute('aria-label', label);
+      btn.title = label;
     }
+    this._syncCardModeSeg();
   }
 
   // Print-prep overlays (cut-in-half, overhang) render on the merged RESULT
@@ -443,6 +457,7 @@ export class App {
     const card = this.root.querySelector('#part-card');
     if (card) card.classList.remove('hidden');
     this._syncCardDomain();
+    this._syncCardModeSeg();
     this._applyCardLayout();
   }
 
@@ -454,6 +469,7 @@ export class App {
     if (!card) return;
     card.classList.toggle('dom-code', this.mode === 'code');
     this._updatePartsHeader?.();
+    this._syncCardModeSeg();
   }
 
   // Keep the HUD (top-left) and nav-cube (top-right) clear of a side-docked
@@ -462,16 +478,17 @@ export class App {
     const stage = this.root.querySelector('.stage');
     if (!stage) return;
     const dock = this._cardDock || 'right';
-    const collapsed = !!this._cardCollapsed;
-    // the HUD / nav-cube dodge an *expanded* side dock in either authoring mode,
-    // but not while the card is hidden (result preview) or laid out as a bottom bar
-    const sideDock = this._layout !== 'bottom'; // the bottom sheet doesn't push the HUD/cube
-    const visible = sideDock && !collapsed && this.viewMode !== 'result';
+    // the HUD / nav-cube dodge an expanded side dock, but not during result preview
+    const sideDock = this._layout !== 'bottom';
+    const visible = sideDock && this.viewMode === 'edit';
     stage.classList.toggle('cardleft', visible && dock === 'left');
     stage.classList.toggle('cardright', visible && dock === 'right');
     const minBtn = this.root.querySelector('#card-min');
-    if (minBtn) { minBtn.textContent = dock === 'right' ? '»' : '«'; minBtn.title = 'Hide the panel'; }
-    this._syncModeSeg(); // the ◨ side-panel toggle reflects the card's open state
+    if (minBtn) {
+      minBtn.textContent = dock === 'right' ? '»' : '«';
+      minBtn.title = 'Preview result (hide panel)';
+    }
+    this._syncWorkspaceUI();
   }
 
   _saveCardDock() {
@@ -1009,7 +1026,7 @@ export class App {
     this.recompile(); // keep the camera as-is — code/build show the same object, so don't reframe
     this._pushHistory();
     this._syncToolbar();
-    this._syncModeSeg(); // code/build switch changes the highlighted segment
+    this._syncCardModeSeg();
   }
 
   // --- command palette (Ctrl+K) ---------------------------------------------
@@ -1179,13 +1196,18 @@ export class App {
     this.mode = data.mode === 'code' ? 'code' : 'build';
     this.source = data.source || '';
     this.viewMode = data.viewMode === 'result' ? 'result' : 'edit';
+    this._cardCollapsed = this.viewMode === 'result';
     this.buildTree.nodes = Array.isArray(data.nodes) ? data.nodes : [];
     this.overrides = {};
     this._codeMirror = null;
     this.selectedNodes = [];
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     this.root.querySelector('#editor').value = this.source;
-    this._syncModeSeg();
+    const card = this.root.querySelector('#part-card');
+    if (card) card.classList.toggle('collapsed', this._cardCollapsed);
+    document.body.classList.toggle('view-result', this.viewMode === 'result');
+    this._syncWorkspaceUI();
+    this._applyCardLayout();
     this._renderBuildTree();
     this._syncBuildTools();
     this.recompile(true);
@@ -1456,13 +1478,10 @@ export class App {
     });
   }
 
-  // The ◨ top-bar button collapses / expands the one unified card (editor in
-  // code, parts inspector in build) — a single sidebar toggle for any mode.
-  _toggleSidebar() {
-    this._setCardCollapsed?.(!this._cardCollapsed);
-  }
+
 
   _openAddModal() {
+    if (this.viewMode === 'result') this._setSidebarOpen(true);
     // Adding parts is a build-mode action; if in code, switch first (carrying
     // the design over via the importer). If that can't happen, don't open.
     if (this.mode !== 'build') {

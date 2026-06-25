@@ -9,11 +9,9 @@
 //   - grid / theme         → #v-grid (.on class) / #v-theme (html.theme-light + randr.theme)
 //   - measure / layers / cut → live in the customizable "More" group (.tb-group):
 //                            #v-measure→app.measureMode, #v-layers→#layer-bar, #v-cut→app.printCut
-//   - code/build/result    → #mode-seg top-bar control (#seg-code/#seg-build/#seg-result)
-//                            → app.mode (code/build) + app.viewMode (result preview)
+//   - code/build           → #card-mode-seg in #part-card → app.mode
+//   - preview/edit         → #workspace-toggle → app.viewMode (result = panel hidden)
 //   - curve quality        → #v-quality button cycles app.curveQuality (24/48/64/128)
-//   - sidebar toggle       → #seg-panel toggle (in #mode-seg) shows/hides the unified
-//                            #part-card (editor in code mode, parts inspector in build)
 import { test, expect } from '@playwright/test';
 import {
   gotoApp,
@@ -183,7 +181,7 @@ test('cut-in-half toggle (toolbar button) flips app.printCut', async ({ page }) 
 });
 
 // The ⚙ gear menu was removed. Curve quality is now a plain toolbar button;
-// mode and the code panel moved to the top-bar #mode-seg control (see toolbar.spec.js).
+// mode lives in the sidebar; preview/edit uses #workspace-toggle (see toolbar.spec.js).
 test('curve-quality button cycles Draft → Standard → Smooth → Ultra → Draft', async ({ page }) => {
   await gotoApp(page);
   const q = page.locator('#v-quality');
@@ -195,44 +193,37 @@ test('curve-quality button cycles Draft → Standard → Smooth → Ultra → Dr
   await expect.poll(() => page.evaluate(() => window.__forgeApp.curveQuality)).toBe(24); // wraps to Draft
 });
 
-test('the sidebar toggle (in the top-bar control) shows / hides the editor card in code mode', async ({ page }) => {
-  await gotoApp(page); // boots in code mode → the unified card shows the editor, open
-  const btn = page.locator('#seg-panel');
+test('workspace toggle switches between edit (sidebar) and result preview in code mode', async ({ page }) => {
+  await gotoApp(page);
+  const btn = page.locator('#workspace-toggle');
   await expect(btn).toBeVisible();
-  const collapsed = () => page.evaluate(() => document.querySelector('#part-card').classList.contains('collapsed'));
+  const preview = () => page.evaluate(() => window.__forgeApp.viewMode === 'result');
 
-  // fresh code-mode boot → card open, toggle lit
-  await expect.poll(collapsed).toBe(false);
+  await expect.poll(preview).toBe(false);
   await expect(btn).toHaveClass(/on/);
+  await expect(page.locator('body')).not.toHaveClass(/view-result/);
 
   await btn.click();
-  await expect.poll(collapsed).toBe(true);   // hidden
+  await expect.poll(preview).toBe(true);
   await expect(btn).not.toHaveClass(/on/);
+  await expect(page.locator('body')).toHaveClass(/view-result/);
 
   await btn.click();
-  await expect.poll(collapsed).toBe(false);  // shown again
+  await expect.poll(preview).toBe(false);
   await expect(btn).toHaveClass(/on/);
 });
 
-test('the side-panel toggle hides the parts inspector in build mode (any-sidebar)', async ({ page }) => {
+test('workspace toggle switches between edit and result preview in build mode', async ({ page }) => {
   await gotoApp(page);
   await ensureBuildMode(page);
-  const btn = page.locator('#seg-panel');
-  const collapsed = () => page.evaluate(() => document.querySelector('#part-card').classList.contains('collapsed'));
+  const btn = page.locator('#workspace-toggle');
+  const preview = () => page.evaluate(() => window.__forgeApp.viewMode === 'result');
 
-  // build mode → the parts inspector is the visible sidebar; toggle is lit
-  await expect.poll(collapsed).toBe(false);
-  await expect(btn).toHaveClass(/on/);
-
-  await btn.click();                          // ◨ collapses the parts inspector
-  await expect.poll(collapsed).toBe(true);
-  await expect(btn).not.toHaveClass(/on/);
-
-  await btn.click();                          // ◨ brings it back
-  await expect.poll(collapsed).toBe(false);
-  await expect(btn).toHaveClass(/on/);
-
-  // ◨ is the single sidebar toggle now — the old ▤ Parts button is gone
+  await expect.poll(preview).toBe(false);
+  await btn.click();
+  await expect.poll(preview).toBe(true);
+  await btn.click();
+  await expect.poll(preview).toBe(false);
   await expect(page.locator('#parts-toggle')).toHaveCount(0);
 });
 
@@ -298,12 +289,12 @@ test('code and build panels are mutually exclusive in the part card', async ({ p
   await gotoApp(page);
   await expect(page.locator('#pane-code')).toBeVisible();
   await expect(page.locator('.pcol-main')).toBeHidden();
-  await expect(page.locator('#parts-count')).toHaveText('Code');
-  await page.locator('#seg-build').click();
+  await expect(page.locator('#card-mode-code')).toHaveClass(/on/);
+  await page.locator('#card-mode-build').click();
   await expect(page.locator('#pane-code')).toBeHidden();
   await expect(page.locator('.pcol-main')).toBeVisible();
-  await expect(page.locator('#parts-count')).toContainText('Parts');
-  await page.locator('#seg-code').click();
+  await expect(page.locator('#card-mode-build')).toHaveClass(/on/);
+  await page.locator('#card-mode-code').click();
   await expect(page.locator('#pane-code')).toBeVisible();
   await expect(page.locator('.pcol-main')).toBeHidden();
 });

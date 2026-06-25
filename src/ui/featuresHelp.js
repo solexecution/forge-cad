@@ -90,7 +90,8 @@ export const FEATURE_SECTIONS = [
     items: [
       { icon: '⠿', key: '—', desc: 'Drag the parts card header to float it or snap to left/right.' },
       { icon: '▣', key: '—', desc: 'Snap the parts card to the opposite screen edge.' },
-      { icon: '«', key: '—', desc: 'Collapse the parts card; use the edge tab to reopen it.' },
+      { icon: '◧', key: '—', desc: 'Top bar: preview the result (hide panel) or show the panel to edit. « in the card header does the same.' },
+      { icon: 'Code|Build', key: '—', desc: 'Switch between source code and visual parts inside the sidebar.' },
       { icon: 'Tap part', key: '—', desc: 'Select a part in the scene or list to edit its fields.' },
       { icon: '⊹ multi', key: '—', desc: 'Sticky multi-select: tap parts to add; tap empty space to finish.' },
       { icon: 'Long-press', key: '—', desc: 'Long-press a part in the scene to arm multi-select mode.' },

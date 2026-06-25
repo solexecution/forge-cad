@@ -315,18 +315,15 @@ test.describe('edit / result view', () => {
     await ensureBuildMode(page);
     await addShape(page, 'box');
 
-    await expect(page.locator('#mode-seg')).toBeVisible();
+    await expect(page.locator('#workspace-toggle')).toBeVisible();
     expect(await page.evaluate(() => window.__forgeApp.viewMode)).toBe('edit');
 
-    // build -> result: the merged solid renders via setColoredModel (per-part colors).
-    await page.click('#seg-result');
+    await page.click('#workspace-toggle');
     await expect.poll(() => page.evaluate(() => window.__forgeApp.viewMode)).toBe('result');
     await expect(page.locator('body')).toHaveClass(/view-result/);
-    // result is a preview — it preserves the authoring mode (no lossy code<->build flip)
     expect(await page.evaluate(() => window.__forgeApp.mode)).toBe('build');
 
-    // result -> build (edit): the preview class clears.
-    await page.click('#seg-build');
+    await page.click('#workspace-toggle');
     await expect.poll(() => page.evaluate(() => window.__forgeApp.viewMode)).toBe('edit');
     await expect(page.locator('body')).not.toHaveClass(/view-result/);
 
