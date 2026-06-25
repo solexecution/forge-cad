@@ -182,6 +182,17 @@ export function bisect(m, gap = 4) {
   return out;
 }
 
+// Cut a solid in half at the centre of its bounding box along `axis` ('x', 'y', or
+// 'z'). Returns [+side, -side] — geometry stays in place (unlike `bisect`, which
+// repacks halves for printing).
+export function splitHalf(m, axis = 'z') {
+  const bb = m.boundingBox();
+  const ax = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+  const normal = axis === 'x' ? [1, 0, 0] : axis === 'y' ? [0, 1, 0] : [0, 0, 1];
+  const center = (bb.min[ax] + bb.max[ax]) / 2;
+  return m.splitByPlane(normal, center);
+}
+
 // Chamfered box: like roundedBox but hulling 8 octahedra, so every edge gets a
 // flat 45 degree bevel of size `c` instead of a round fillet.
 export function chamferedBox(x, y, z, c) {

@@ -362,6 +362,61 @@ test.describe('array (multi-select)', () => {
   });
 });
 
+test.describe('group transforms', () => {
+  test('grouped parts nudge together on arrow keys', async ({ page }) => {
+    await gotoApp(page);
+    await ensureBuildMode(page);
+    const a = await addShape(page, 'box');
+    const b = await addShape(page, 'box');
+    await selectTwo(page, a, b);
+    await page.click('#groupbar [data-group="group"]');
+    await page.waitForFunction(
+      ({ a, b }) => {
+        const n = window.__forgeApp.buildTree.nodes;
+        return n[a].group != null && n[a].group === n[b].group;
+      },
+      { a, b },
+    );
+    // Re-select one member — selection expands to the whole group.
+    await selectNode(page, a);
+    const before = await page.evaluate(({ a, b }) => {
+      const n = window.__forgeApp.buildTree.nodes;
+      return { ax: n[a].pos[0], bx: n[b].pos[0] };
+    }, { a, b });
+    await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+    await selectNode(page, a);
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction(
+      ({ a, b, ax }) => {
+        const n = window.__forgeApp.buildTree.nodes;
+        return n[a].pos[0] > ax && n[b].pos[0] > ax;
+      },
+      { a, b, ax: before.ax },
+    );
+    const after = await page.evaluate(({ a, b, ax, bx }) => {
+      const n = window.__forgeApp.buildTree.nodes;
+      return { da: n[a].pos[0] - ax, db: n[b].pos[0] - bx };
+    }, { a, b, ax: before.ax, bx: before.bx });
+    expect(after.da).toBeCloseTo(after.db, 1);
+    expect(after.da).toBeGreaterThan(0);
+  });
+
+  test('cut in half along Z splits one part into two', async ({ page }) => {
+    await gotoApp(page);
+    await ensureBuildMode(page);
+    const i = await addShape(page, 'box');
+    await selectNode(page, i);
+    const before = await partCount(page);
+    await openEditToolTab(page, 'place');
+    await page.click('#opsbar [data-cut-half="z"]');
+    await page.waitForFunction((n) => window.__forgeApp.buildTree.nodes.length === n + 1, before);
+    expect(await partCount(page)).toBe(before + 1);
+    const kinds = await page.evaluate(() =>
+      window.__forgeApp.buildTree.nodes.slice(-2).map((n) => n.kind));
+    expect(kinds).toEqual(['imported', 'imported']);
+  });
+});
+
 // NOTE: canvas right-click (viewport.onContext -> _showContextMenu) requires a
 // real pixel-accurate pick on the WebGL canvas, which is too fragile under the
 // headless SwiftShader renderer. The same actions it exposes (solid/hole, lock,

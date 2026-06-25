@@ -357,6 +357,10 @@ class EventBindings {
     this.root.querySelectorAll('[data-op-act]').forEach((b) =>
       b.addEventListener('click', () => this._placeOp(b.dataset.opAct)));
 
+    // cut selection in half along X / Y / Z
+    this.root.querySelectorAll('[data-cut-half]').forEach((b) =>
+      b.addEventListener('click', () => this._splitHalf(b.dataset.cutHalf)));
+
     // group / ungroup toolbar + boolean mode
     this.root.querySelectorAll('[data-group]').forEach((b) =>
       b.addEventListener('click', () => (b.dataset.group === 'group' ? this._group() : this._ungroup())));

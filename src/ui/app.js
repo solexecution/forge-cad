@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, registerSolid, solidMesh, setCurveQuality } from '../kernel/manifold.js';
+import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, registerSolid, solidMesh, setCurveQuality, splitHalf } from '../kernel/manifold.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
@@ -115,6 +115,7 @@ export class App {
     this.viewport.onTransform = (i, t) => this._onTransform(i, t);
     this.viewport.onGroupTransform = (updates) => this._onGroupTransform(updates);
     this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
+    this.viewport.getTransformSet = () => this._transformSet();
     this.viewport.onSketchComplete = (pts) => this._onSketchComplete(pts);
     window.__forgeExport = { exportSTL, export3MF, export3MFColored, exportOBJ, build3MF: () => this._build3MF() }; // scripting/test hook
     window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, importOBJ, import3MF, registerSolid, coloredParts: () => buildColoredParts(this.buildTree) }; // debug
@@ -264,7 +265,8 @@ export class App {
       }))
       .filter((it) => it && it.geometry);
     this.viewport.setEditShapes(items);
-    this.selectedNodes = this.selectedNodes.filter((i) => i < this.buildTree.nodes.length);    this.viewport.setSelection(this.selectedNodes);
+    this.selectedNodes = this.selectedNodes.filter((i) => i < this.buildTree.nodes.length);
+    this.viewport.setSelection(this.selectedNodes, this._transformSet());
     this._highlightBuildRows();
     this._renderAlignBar();
     this._updatePartsHeader();
@@ -405,11 +407,21 @@ export class App {
     return nodes.map((n, k) => (n.group === g ? k : -1)).filter((k) => k >= 0);
   }
 
-  // Place/move targets: selection plus every member of any touched group.
+  // Place/move/transform targets: selection plus every member of any touched group.
   _placeSet() {
     const out = new Set();
     this.selectedNodes.forEach((i) => this._members(i).forEach((j) => out.add(j)));
     return [...out];
+  }
+
+  _transformSet() { return this._placeSet(); }
+
+  // One linked group selected (all members share a group id).
+  _isUnifiedGroupSelection() {
+    if (this.selectedNodes.length < 2) return false;
+    const nodes = this.buildTree.nodes;
+    const g = nodes[this.selectedNodes[0]]?.group;
+    return g != null && this.selectedNodes.every((i) => nodes[i]?.group === g);
   }
 
   _selectionBounds(indices) {
@@ -464,7 +476,7 @@ export class App {
     }
     let baked = false;
     if (i >= 0 && !additive) baked = bakeNodeScale(this.buildTree.nodes[i]);
-    this.viewport.setSelection(this.selectedNodes);
+    this.viewport.setSelection(this.selectedNodes, this._transformSet());
     this._highlightBuildRows();
     if (baked) this._scheduleRecompile();
     this._renderAlignBar();
@@ -702,15 +714,16 @@ export class App {
   // shifting meshes directly so threaded parts don't re-mesh each press.
   _nudge(d) {
     const nodes = this.buildTree.nodes;
+    const sel = this._transformSet();
     let any = false;
-    this.selectedNodes.forEach((i) => {
+    sel.forEach((i) => {
       const n = nodes[i]; if (!n || n.locked) return;
       n.pos = [n.pos[0] + d[0], n.pos[1] + d[1], n.pos[2] + d[2]]; any = true;
     });
     if (!any) return;
     this.viewport.shiftSelected(d[0], d[1], d[2]);
     const host = this.root.querySelector('#build-list');
-    if (host) this.selectedNodes.forEach((i) => {
+    if (host) sel.forEach((i) => {
       const n = nodes[i]; if (!n) return;
       ['0', '1', '2'].forEach((a) => { const el = host.querySelector(`input[data-pos="${i}:${a}"]`); if (el) el.value = n.pos[+a]; });
     });
@@ -932,18 +945,64 @@ export class App {
     this._toast(`Broke into ${pieces.length} pieces`);
   }
 
+  // Cut the selection (or a linked group) in half along X, Y, or Z at its centre.
+  _splitHalf(axis) {
+    const nodes = this.buildTree.nodes;
+    if (!this.selectedNodes.length) return;
+    if (!this._isUnifiedGroupSelection() && this.selectedNodes.length > 1) {
+      this._toast('Select one part or a linked group to cut');
+      return;
+    }
+    const ref = nodes[this.selectedNode];
+    if (!ref) return;
+    const compileNodes = this._isUnifiedGroupSelection()
+      ? nodes.filter((n) => n.group === ref.group).map((n) => ({ ...n, op: 'solid', hidden: false }))
+      : [{ ...ref, op: 'solid', group: null, groupMode: 'union', hidden: false }];
+    let man = null;
+    try { man = compile(buildTreeToSource({ nodes: compileNodes }), {}).result; }
+    catch { this._toast('Couldn’t cut this part'); return; }
+    if (!man) { this._toast('Nothing to cut'); return; }
+    let halves = [];
+    try {
+      halves = splitHalf(man, axis);
+      man.delete();
+    } catch { this._toast('Couldn’t cut this part'); return; }
+    if (!halves || halves.length !== 2) { this._toast('Cut failed'); return; }
+    const baseName = ref.meshName || ref.kind || 'part';
+    const pieces = halves.map((c, k) => {
+      const id = `cut-${Date.now()}-${k}`;
+      try { registerSolid(id, c); } catch { c.delete(); return null; }
+      return {
+        kind: 'imported', op: ref.op, pos: [0, 0, 0], rot: [0, 0, 0], scale: [1, 1, 1],
+        color: ref.color, locked: false, hidden: false, group: null, groupMode: 'union',
+        collapsed: false, meshId: id, meshName: `${baseName} ${k + 1}`, fields: [],
+      };
+    }).filter(Boolean);
+    if (pieces.length !== 2) { this._toast('Couldn’t cut this part'); return; }
+    const remove = this._isUnifiedGroupSelection()
+      ? nodes.map((n, i) => (n.group === ref.group ? i : -1)).filter((i) => i >= 0)
+      : [this.selectedNode];
+    const insertAt = Math.min(...remove);
+    remove.sort((a, b) => b - a).forEach((i) => nodes.splice(i, 1));
+    nodes.splice(insertAt, 0, ...pieces);
+    this.selectedNodes = [insertAt, insertAt + 1];
+    this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar();
+    const ax = axis === 'x' ? 'left/right' : axis === 'y' ? 'front/back' : 'top/bottom';
+    this._toast(`Cut in half (${ax})`);
+  }
+
   // live during a drag: move the shape (whole group moves together) + reflect
   // in the panel, no recompile
   _onShapeMove(i, pos) {
     const nodes = this.buildTree.nodes;
     const n = nodes[i];
     if (!n) return;
-    const dx = pos[0] - n.pos[0], dy = pos[1] - n.pos[1];
-    const sel = this.selectedNodes.includes(i) ? this.selectedNodes : [i];
+    const dx = pos[0] - n.pos[0], dy = pos[1] - n.pos[1], dz = pos[2] - n.pos[2];
+    const sel = this._transformSet().includes(i) ? this._transformSet() : [i];
     const host = this.root.querySelector('#build-list');
     sel.forEach((j) => {
       const m = nodes[j]; if (!m) return;
-      m.pos = (j === i) ? pos : [m.pos[0] + dx, m.pos[1] + dy, m.pos[2]];
+      m.pos = (j === i) ? pos : [m.pos[0] + dx, m.pos[1] + dy, m.pos[2] + dz];
       if (host) ['0', '1', '2'].forEach((a) => {
         const el = host.querySelector(`input[data-pos="${j}:${a}"]`);
         if (el && document.activeElement !== el) el.value = m.pos[+a];
@@ -953,14 +1012,21 @@ export class App {
 
   // drag finished: settle the merged solid + HUD (export needs it current)
   _onShapeMoveEnd(i, pos) {
-    const n = this.buildTree.nodes[i];
+    const nodes = this.buildTree.nodes;
+    const n = nodes[i];
     if (!n) return;
-    n.pos = pos;
-    this._recompileMergedHUD();
+    const dx = pos[0] - n.pos[0], dy = pos[1] - n.pos[1], dz = pos[2] - n.pos[2];
+    const sel = this._transformSet().includes(i) ? this._transformSet() : [i];
+    sel.forEach((j) => {
+      const m = nodes[j]; if (!m) return;
+      m.pos = (j === i) ? pos : [m.pos[0] + dx, m.pos[1] + dy, m.pos[2] + dz];
+    });
+    if (sel.length > 1) this.recompile();
+    else this._recompileMergedHUD();
     this._pushHistory();
   }
 
-  // Rigid multi-part gizmo drag — pivot at selection centre (see viewport.beginGroupTransform).
+  // Rigid multi-part gizmo drag — pivot at selection centre (see viewport._syncGroupGizmo).
   _onGroupTransform(updates) {
     const nodes = this.buildTree.nodes;
     const host = this.root.querySelector('#part-modal-fields');
@@ -990,7 +1056,7 @@ export class App {
     const newPos = t.pos.map((v) => r(v, 2));
     const newRot = t.rot.map((v) => r(v, 2));
     const newScale = t.scale.map((v) => r(v, 3));
-    const sel = this.selectedNodes.includes(i) ? this.selectedNodes : [i];
+    const sel = this._transformSet().includes(i) ? this._transformSet() : [i];
     // Move applies as a rigid delta to the whole group; rotate/scale apply the
     // same delta/factor to each member (predictable for v1).
     const dPos = [newPos[0] - n.pos[0], newPos[1] - n.pos[1], newPos[2] - n.pos[2]];
@@ -1017,7 +1083,7 @@ export class App {
   // Single shape: cheap merged-only refresh. Group: rebuild every edit mesh so
   // the non-primary members (which the gizmo doesn't move live) catch up.
   _onTransformEnd() {
-    if (this.selectedNodes.length > 1) this.recompile();
+    if (this._transformSet().length > 1) this.recompile();
     else this._recompileMergedHUD();
     this._pushHistory();
   }

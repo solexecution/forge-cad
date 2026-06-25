@@ -18,7 +18,10 @@ class BuildPaneRenderers {
       if (this.multiSelect) hintEl.textContent = sel
         ? `${sel} selected — tap more to add · tap ⊹ multi to finish`
         : 'Multi-select on — tap parts in the scene to add';
-      else if (sel >= 2) hintEl.textContent = `${sel} selected — use the Multi tab below`;
+      else if (this._isUnifiedGroupSelection?.()) {
+        const g = nodes[this.selectedNodes[0]]?.group;
+        hintEl.textContent = `Group G${g} (${sel} parts) — moves, turns and scales together`;
+      } else if (sel >= 2) hintEl.textContent = `${sel} selected — use the Multi tab below`;
       else if (sel === 1) {
         const n = nodes[this.selectedNodes[0]];
         const name = n ? (n.kind === 'imported' ? (n.meshName || 'mesh') : (n.kind || 'part')) : 'part';
@@ -48,9 +51,11 @@ class BuildPaneRenderers {
       if (mEl) mEl.textContent = '—';
       return;
     }
-    const mb = this.viewport.shapeBounds ? this.viewport.shapeBounds(this.selectedNode) : null;
-    mEl.textContent = mb
-      ? `${(mb.max[0] - mb.min[0]).toFixed(1)} × ${(mb.max[1] - mb.min[1]).toFixed(1)} × ${(mb.max[2] - mb.min[2]).toFixed(1)} mm`
+    const bb = this._isUnifiedGroupSelection?.()
+      ? this._selectionBounds(this._transformSet())
+      : (this.viewport.shapeBounds ? this.viewport.shapeBounds(this.selectedNode) : null);
+    mEl.textContent = bb
+      ? `${(bb.max[0] - bb.min[0]).toFixed(1)} × ${(bb.max[1] - bb.min[1]).toFixed(1)} × ${(bb.max[2] - bb.min[2]).toFixed(1)} mm`
       : '—';
   }
 
@@ -65,7 +70,7 @@ class BuildPaneRenderers {
       return;
     }
     host.innerHTML = '';
-    if (this.selectedNodes.length >= 2) {
+    if (this.selectedNodes.length >= 2 && !this._isUnifiedGroupSelection?.()) {
       host.innerHTML = `<p class="muted edit-multi-hint">${this.selectedNodes.length} parts selected — open the <strong>Multi</strong> tab below to align, group, or array them.</p>`;
       this._renderAlignBar();
       return;

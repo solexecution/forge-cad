@@ -122,6 +122,8 @@ export class Viewport {
     this.editMeshes = [];          // [{ index, mesh, op }]
     this.selectedIndex = -1;
     this.selectedSet = [];
+    this.transformSet = [];        // rigid transform targets (selection + group members)
+    this.getTransformSet = null;   // optional () => indices — refreshed on recompile
     this.transformMode = 'translate';
     this._gizmoDragging = false;
     this.onSelect = null;          // (index | -1)
@@ -628,7 +630,7 @@ export class Viewport {
       this._magnetSuppressed = false;
       this._dragBox = this._meshLocalBox(hit.object);
       this._magnetTargets = this.editMeshes
-        .filter((e) => !this.selectedSet.includes(e.index))
+        .filter((e) => !this.transformSet.includes(e.index))
         .map((e) => this._meshWorldBox(e.mesh));
     };
     const moveShape = (x, y) => {
@@ -647,9 +649,9 @@ export class Viewport {
       // Shift every selected shape by the same delta so a group/multi-select
       // moves together (the primary tracks the cursor, the rest follow).
       const dx = nx - em.mesh.position.x, dy = ny - em.mesh.position.y;
-      if (this.selectedSet.length > 1) {
+      if (this.transformSet.length > 1) {
         for (const e of this.editMeshes) {
-          if (e === em || !this.selectedSet.includes(e.index)) continue;
+          if (e === em || !this.transformSet.includes(e.index)) continue;
           e.mesh.position.x += dx; e.mesh.position.y += dy;
         }
       }
@@ -849,11 +851,8 @@ export class Viewport {
     g.setSpace('world');
     g.addEventListener('dragging-changed', (e) => {
       this._gizmoDragging = e.value;
-      if (e.value) this.beginGroupTransform();
-      else {
-        this.endGroupTransform();
-        if (this.onTransformEnd && this.selectedIndex >= 0) this.onTransformEnd(this.selectedIndex);
-      }
+      if (e.value) this._syncGroupGizmo();
+      else if (this.onTransformEnd && this.selectedIndex >= 0) this.onTransformEnd(this.selectedIndex);
     });
     g.addEventListener('objectChange', () => {
       if (this._groupXformLocals) { this._propagateGroupPivotTransform(); return; }
@@ -877,19 +876,27 @@ export class Viewport {
     if (this.gizmo) this.gizmo.setMode(mode);
   }
 
-  // With 2+ shapes selected, park the gizmo on a pivot at the selection centre
-  // so move/rotate/scale applies as one rigid body (not per-part euler deltas).
-  beginGroupTransform() {
-    const sel = this.selectedSet;
-    if (sel.length < 2) return false;
+  // With 2+ transform targets (multi-select or a linked group), park the gizmo on a
+  // pivot at the selection centre so move/rotate/scale is one rigid body.
+  _syncGroupGizmo() {
+    const ts = this.transformSet;
+    const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
+    if (!this.gizmo || !this.editActive) return false;
+    if (!em || em.lock) { this._clearGroupPivot(); this.gizmo.detach(); return false; }
+    if (ts.length < 2) {
+      this._clearGroupPivot();
+      this.gizmo.attach(em.mesh);
+      this.gizmo.setMode(this.transformMode);
+      return false;
+    }
     if (!this._groupPivot) {
       this._groupPivot = new THREE.Object3D();
       this.editGroup.add(this._groupPivot);
     }
     const box = new THREE.Box3();
-    for (const i of sel) {
-      const em = this.editMeshes.find((e) => e.index === i);
-      if (em) { em.mesh.updateMatrixWorld(true); box.expandByObject(em.mesh); }
+    for (const i of ts) {
+      const m = this.editMeshes.find((e) => e.index === i);
+      if (m) { m.mesh.updateMatrixWorld(true); box.expandByObject(m.mesh); }
     }
     if (box.isEmpty()) return false;
     box.getCenter(this._xfCenter);
@@ -899,15 +906,18 @@ export class Viewport {
     this._groupPivot.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(this._groupPivot.matrixWorld).invert();
     this._groupXformLocals = [];
-    for (const i of sel) {
-      const em = this.editMeshes.find((e) => e.index === i);
-      if (!em) continue;
-      const local = new THREE.Matrix4().copy(em.mesh.matrixWorld).premultiply(inv);
+    for (const i of ts) {
+      const m = this.editMeshes.find((e) => e.index === i);
+      if (!m) continue;
+      const local = new THREE.Matrix4().copy(m.mesh.matrixWorld).premultiply(inv);
       this._groupXformLocals.push({ index: i, matrix: local });
     }
-    if (this.gizmo) { this.gizmo.attach(this._groupPivot); this.gizmo.setMode(this.transformMode); }
+    this.gizmo.attach(this._groupPivot);
+    this.gizmo.setMode(this.transformMode);
     return true;
   }
+
+  _clearGroupPivot() { this._groupXformLocals = null; }
 
   _propagateGroupPivotTransform() {
     if (!this._groupXformLocals || !this._groupPivot || !this.onGroupTransform) return;
@@ -941,15 +951,6 @@ export class Viewport {
     this.onGroupTransform(updates);
   }
 
-  endGroupTransform() {
-    const was = !!this._groupXformLocals;
-    this._groupXformLocals = null;
-    if (!was || !this.gizmo) return;
-    const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
-    if (em && !em.lock && this.editActive) { this.gizmo.attach(em.mesh); this.gizmo.setMode(this.transformMode); }
-    else this.gizmo.detach();
-  }
-
   setSnap(on) {
     this.snap = on;
     if (this.gizmo) {
@@ -965,7 +966,7 @@ export class Viewport {
   // re-mesh on every key press.
   shiftSelected(dx, dy, dz) {
     for (const e of this.editMeshes) {
-      if (!this.selectedSet.includes(e.index)) continue;
+      if (!this.transformSet.includes(e.index)) continue;
       e.mesh.position.x += dx; e.mesh.position.y += dy; e.mesh.position.z += dz;
     }
     const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
@@ -1377,13 +1378,17 @@ export class Viewport {
     this.setSelection(valid);
   }
 
-  // Highlight a set of shapes; the LAST one is the primary (gizmo + outline).
-  setSelection(indices) {
+  // Highlight a set of shapes; the LAST one is the primary (outline). Gizmo uses
+  // transformSet (selection + group members) for rigid multi-part transforms.
+  setSelection(indices, transformSet) {
     this.selectedSet = (indices || []).slice();
+    this.transformSet = transformSet
+      ? transformSet.slice()
+      : (this.getTransformSet ? this.getTransformSet() : this.selectedSet);
     this.selectedIndex = this.selectedSet.length ? this.selectedSet[this.selectedSet.length - 1] : -1;
     this._clearOutline();
     for (const e of this.editMeshes) {
-      const sel = this.selectedSet.includes(e.index);
+      const sel = this.transformSet.includes(e.index);
       const glow = e.op === 'hole' ? COLORS.glowHole : COLORS.glowSolid;
       e.mesh.material.emissive.setHex(sel ? glow : 0x000000);
     }
@@ -1400,9 +1405,7 @@ export class Viewport {
       this._outline = line;
     }
     if (this.gizmo) {
-      // Only show the gizmo while actually editing parts — never in result view
-      // or code mode, even if a part stays selected (e.g. picked from the list).
-      if (em && !em.lock && this.editActive) { this.gizmo.attach(em.mesh); this.gizmo.setMode(this.transformMode); }
+      if (em && !em.lock && this.editActive) this._syncGroupGizmo();
       else this.gizmo.detach();
     }
   }
