@@ -665,6 +665,8 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
   color: var(--red); background: rgba(239, 83, 80, .14); font-weight: 600;
   box-shadow: inset 3px 0 0 var(--red);
 }
+.editor-ln .ln.ln-cont { cursor: pointer; }
+.editor-ln .ln.ln-cont.error-line { font-weight: inherit; }
 
 .editor-wrap {
   position: relative; display: flex; flex-direction: column;

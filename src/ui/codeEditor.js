@@ -44,7 +44,66 @@ function lineMetrics(editor) {
   return {
     lh: parseFloat(st.lineHeight) || 20,
     padY: parseFloat(st.paddingTop) || 10,
+    padTop: parseFloat(st.paddingTop) || 10,
+    padBottom: parseFloat(st.paddingBottom) || 10,
   };
+}
+
+/** Hidden mirror for wrap-aware caret position and per-line visual row counts. */
+function createMeasureEl() {
+  const el = document.createElement('div');
+  el.setAttribute('aria-hidden', 'true');
+  el.style.cssText = 'position:fixed;left:-9999px;top:0;visibility:hidden;pointer-events:none;overflow:hidden;';
+  document.body.appendChild(el);
+  return el;
+}
+
+function syncMeasureEl(measureEl, editor, wrapOn) {
+  const st = getComputedStyle(editor);
+  measureEl.style.font = st.font;
+  measureEl.style.fontSize = st.fontSize;
+  measureEl.style.fontFamily = st.fontFamily;
+  measureEl.style.lineHeight = st.lineHeight;
+  measureEl.style.letterSpacing = st.letterSpacing;
+  measureEl.style.tabSize = st.tabSize;
+  measureEl.style.boxSizing = st.boxSizing;
+  measureEl.style.width = `${editor.clientWidth}px`;
+  measureEl.style.padding = st.padding;
+  measureEl.style.whiteSpace = wrapOn ? 'pre-wrap' : 'pre';
+  measureEl.style.overflowWrap = wrapOn ? 'break-word' : 'normal';
+  measureEl.style.wordBreak = wrapOn ? 'break-word' : 'normal';
+}
+
+function measureLineRows(measureEl, line, lh) {
+  measureEl.textContent = line.length === 0 ? ' ' : line;
+  const { padTop, padBottom } = lineMetrics(measureEl);
+  const contentH = measureEl.offsetHeight - padTop - padBottom;
+  return Math.max(1, Math.ceil(contentH / lh - 1e-6));
+}
+
+function caretVisualRowOnLine(measureEl, lineText, caretCol, lh) {
+  measureEl.textContent = '';
+  measureEl.appendChild(document.createTextNode(lineText.slice(0, caretCol)));
+  const mark = document.createElement('span');
+  mark.textContent = '\u200b';
+  measureEl.appendChild(mark);
+  return Math.floor(mark.offsetTop / lh + 1e-6);
+}
+
+function caretBandTop(editor, measureEl, wrapOn) {
+  const { lh, padY } = lineMetrics(editor);
+  if (!wrapOn) {
+    const caretLine = editor.value.slice(0, editor.selectionStart).split('\n').length;
+    return padY + (caretLine - 1) * lh;
+  }
+  syncMeasureEl(measureEl, editor, true);
+  const pos = editor.selectionStart;
+  measureEl.textContent = '';
+  measureEl.appendChild(document.createTextNode(editor.value.slice(0, pos)));
+  const mark = document.createElement('span');
+  mark.textContent = '\u200b';
+  measureEl.appendChild(mark);
+  return padY + mark.offsetTop;
 }
 
 function scrollEditorToLine(editor, lineNum) {
@@ -333,6 +392,8 @@ export function installCodeEditor(app) {
   }
 
   let errorLine = null;
+  const measureEl = createMeasureEl();
+  const editorWrap = $(root, '.editor-wrap');
 
   // --- line numbers + active / error line ---
   function updateActiveLineBand() {
@@ -340,9 +401,8 @@ export function installCodeEditor(app) {
     const value = editor.value;
     if (!value) { activeBand.style.display = 'none'; return; }
     activeBand.style.display = 'block';
-    const caretLine = value.slice(0, editor.selectionStart).split('\n').length;
-    const { lh, padY } = lineMetrics(editor);
-    const top = padY + (caretLine - 1) * lh - editor.scrollTop;
+    const { lh } = lineMetrics(editor);
+    const top = caretBandTop(editor, measureEl, wrapOn) - editor.scrollTop;
     activeBand.style.transform = `translateY(${top}px)`;
     activeBand.style.height = `${lh}px`;
   }
@@ -350,16 +410,43 @@ export function installCodeEditor(app) {
   function updateGutter() {
     if (!lnPre || !gutter) return;
     const value = editor.value;
-    const caretLine = value.slice(0, editor.selectionStart).split('\n').length;
+    const pos = editor.selectionStart;
+    const caretLine = value.slice(0, pos).split('\n').length;
     const lines = value.split('\n');
-    const html = lines.map((_, i) => {
-      const n = i + 1;
-      let cls = 'ln';
-      if (n === errorLine) cls += ' error-line';
-      else if (n === caretLine) cls += ' active';
-      return `<span class="${cls}">${n}</span>`;
-    }).join('');
-    lnPre.innerHTML = html || '<span class="ln active">1</span>';
+    const { lh } = lineMetrics(editor);
+    const parts = [];
+
+    if (!wrapOn) {
+      lines.forEach((_, i) => {
+        const n = i + 1;
+        let cls = 'ln';
+        if (n === errorLine) cls += ' error-line';
+        else if (n === caretLine) cls += ' active';
+        parts.push(`<span class="${cls}" data-line="${n}">${n}</span>`);
+      });
+    } else {
+      syncMeasureEl(measureEl, editor, true);
+      const caretLineIdx = caretLine - 1;
+      const lineStart = value.lastIndexOf('\n', pos - 1) + 1;
+      const caretCol = pos - lineStart;
+      const caretRowOnLine = caretVisualRowOnLine(
+        measureEl, lines[caretLineIdx] ?? '', caretCol, lh,
+      );
+      for (let i = 0; i < lines.length; i++) {
+        const n = i + 1;
+        const rows = measureLineRows(measureEl, lines[i], lh);
+        for (let r = 0; r < rows; r++) {
+          const isFirst = r === 0;
+          let cls = isFirst ? 'ln' : 'ln ln-cont';
+          if (n === errorLine) cls += ' error-line';
+          else if (i === caretLineIdx && r === caretRowOnLine) cls += ' active';
+          const label = isFirst ? String(n) : '';
+          parts.push(`<span class="${cls}" data-line="${n}">${label}</span>`);
+        }
+      }
+    }
+
+    lnPre.innerHTML = parts.join('') || '<span class="ln active" data-line="1">1</span>';
     gutter.scrollTop = editor.scrollTop;
     updateActiveLineBand();
   }
@@ -370,9 +457,14 @@ export function installCodeEditor(app) {
   gutter?.addEventListener('click', (e) => {
     const el = e.target.closest('.ln');
     if (!el) return;
-    const n = parseInt(el.textContent, 10);
+    const n = parseInt(el.dataset.line, 10);
     if (n > 0) scrollEditorToLine(editor, n);
   });
+
+  if (editorWrap && typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => updateGutter());
+    ro.observe(editorWrap);
+  }
 
   app._setErrorLine = (line) => {
     errorLine = line;
