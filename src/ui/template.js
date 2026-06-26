@@ -18,7 +18,7 @@ function templatesMenuHTML() {
 
 export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
   return `
-      <div id="boot"><div class="boot-inner"><span class="boot-mark">◆</span><p>loading kernel…</p></div></div>
+        <div id="boot" aria-hidden="false"><div class="boot-inner"><span class="boot-mark">◆</span><p>loading kernel…</p></div></div>
 
       <div class="stage">
         <canvas id="viewport-canvas"></canvas>
@@ -293,10 +293,10 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
 
         <div id="ctx-menu" class="ctx-menu hidden" role="menu"></div>
 
-        <div id="help-modal" class="modal-overlay center hidden">
+        <div id="help-modal" class="modal-overlay center hidden" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" aria-hidden="true">
           <div class="modal-panel help-panel">
             <div class="modal-head">
-              <span class="modal-title">Help</span>
+              <span class="modal-title" id="help-modal-title">Help</span>
               <button class="modal-x" id="help-close" aria-label="Close">✕</button>
             </div>
             <div class="help-tabs" role="tablist" aria-label="Help sections">

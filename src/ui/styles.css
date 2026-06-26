@@ -117,7 +117,7 @@ body {
   background: var(--bg);
   transition: opacity .4s ease;
 }
-#boot.gone { opacity: 0; pointer-events: none; }
+#boot.gone { opacity: 0; pointer-events: none; visibility: hidden; }
 .boot-inner { text-align: center; color: var(--ink-dim); }
 .boot-mark {
   display: block; font-size: 42px; color: var(--cyan);

@@ -263,15 +263,30 @@ class EventBindings {
         });
         const feat = this.root.querySelector('#help-features');
         const gcode = this.root.querySelector('#help-gcode');
-        if (feat) feat.classList.toggle('hidden', tab !== 'features');
-        if (gcode) gcode.classList.toggle('hidden', tab !== 'gcode');
+        if (feat) {
+          feat.classList.toggle('hidden', tab !== 'features');
+          feat.setAttribute('aria-hidden', tab !== 'features' ? 'true' : 'false');
+        }
+        if (gcode) {
+          gcode.classList.toggle('hidden', tab !== 'gcode');
+          gcode.setAttribute('aria-hidden', tab !== 'gcode' ? 'true' : 'false');
+        }
       };
-      helpBtn.addEventListener('click', () => { showHelpTab('features'); helpModal.classList.remove('hidden'); });
+      helpBtn.addEventListener('click', () => {
+        showHelpTab('features');
+        helpModal.classList.remove('hidden');
+        helpModal.setAttribute('aria-hidden', 'false');
+        this.root.querySelector('#help-close')?.focus();
+      });
       this.root.querySelectorAll('.help-tab').forEach((b) =>
         b.addEventListener('click', () => showHelpTab(b.dataset.helpTab)));
+      const closeHelp = () => {
+        helpModal.classList.add('hidden');
+        helpModal.setAttribute('aria-hidden', 'true');
+      };
       const hc = this.root.querySelector('#help-close');
-      if (hc) hc.addEventListener('click', () => helpModal.classList.add('hidden'));
-      helpModal.addEventListener('mousedown', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
+      if (hc) hc.addEventListener('click', closeHelp);
+      helpModal.addEventListener('mousedown', (e) => { if (e.target === helpModal) closeHelp(); });
     }
 
     // layer preview: toggle + scrub

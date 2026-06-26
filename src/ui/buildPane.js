@@ -45,6 +45,82 @@ class BuildPaneRenderers {
     return !!(el && panel?.contains(el) && el.matches('input, textarea, select'));
   }
 
+  // One-time delegated listeners on #part-modal-fields so pos/rot/dimension
+  // edits survive panel re-renders and still fire for Playwright fill (change).
+  _ensurePartFieldDelegates() {
+    const host = this.root.querySelector('#part-modal-fields');
+    if (!host || host.dataset.delegates) return;
+    host.dataset.delegates = '1';
+    const numIn = (el) => {
+      const v = parseFloat(String(el.value).replace(',', '.'));
+      return Number.isFinite(v) ? v : null;
+    };
+    const apply = (el) => {
+      const nodes = this.buildTree.nodes;
+      if (el.dataset.pos) {
+        const [i, a] = el.dataset.pos.split(':');
+        const n = nodes[+i];
+        const v = numIn(el);
+        if (!n || v == null) return;
+        n.pos[+a] = v;
+        this._scheduleRecompile();
+      } else if (el.dataset.rot) {
+        const [i, a] = el.dataset.rot.split(':');
+        const n = nodes[+i];
+        const v = numIn(el);
+        if (!n || v == null) return;
+        n.rot[+a] = v;
+        this._scheduleRecompile();
+      } else if (el.dataset.field) {
+        const [i, key] = el.dataset.field.split(':');
+        const n = nodes[+i];
+        if (!n) return;
+        const f = n.fields.find((x) => x.key === key);
+        if (!f) return;
+        if (f.type === 'text') { f.value = el.value; this._scheduleRecompile(); return; }
+        const v = numIn(el);
+        if (v == null) return;
+        f.value = v;
+        if (isSizeField(n.kind, key)) resetScaleOnSizeEdit(n);
+        this._scheduleRecompile();
+      } else if (el.dataset.clear != null) {
+        const n = nodes[+el.dataset.clear];
+        const v = numIn(el);
+        if (!n || v == null) return;
+        n.clearance = v;
+        this._scheduleRecompile();
+      } else if (el.dataset.hollow != null) {
+        const n = nodes[+el.dataset.hollow];
+        const v = numIn(el);
+        if (!n || v == null) return;
+        n.hollow = Math.max(0, v);
+        this._scheduleRecompile();
+      } else if (el.dataset.fillet != null) {
+        const n = nodes[+el.dataset.fillet];
+        const v = numIn(el);
+        if (!n || v == null) return;
+        n.fillet = Math.max(0, v);
+        this._scheduleRecompile();
+      }
+    };
+    host.addEventListener('input', (e) => {
+      const el = e.target;
+      if (el instanceof HTMLInputElement && el.closest('#part-modal-fields') === host) apply(el);
+    });
+    host.addEventListener('change', (e) => {
+      const el = e.target;
+      if (el instanceof HTMLInputElement && el.closest('#part-modal-fields') === host) apply(el);
+    });
+  }
+
+  // Refresh selection highlights in the parts roster without rebuilding the editor.
+  _syncPartsListSelection() {
+    const sel = new Set(this.selectedNodes);
+    this.root.querySelectorAll('#build-list .pl-row').forEach((row) => {
+      row.classList.toggle('sel', sel.has(+row.dataset.node));
+    });
+  }
+
   _updatePartMetrics() {
     const mEl = this.root.querySelector('#part-modal-metrics');
     if (!mEl || this.selectedNode < 0 || !this.buildTree.nodes[this.selectedNode]) {
@@ -242,19 +318,36 @@ class BuildPaneRenderers {
       apply(v);
       this._scheduleRecompile();
     };
-    host.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
-      const [i, key] = el.dataset.field.split(':');
-      const n = nodes[+i];
-      const f = n.fields.find((x) => x.key === key);
-      if (f.type === 'text') { f.value = el.value; this._scheduleRecompile(); return; }
-      const v = numIn(el);
-      if (v == null) return;
-      f.value = v;
-      if (isSizeField(n.kind, key)) resetScaleOnSizeEdit(n);
-      this._scheduleRecompile();
-    }));
+    const syncFieldToModel = (el) => {
+      const nodes = this.buildTree.nodes;
+      if (el.dataset.pos) {
+        const [i, a] = el.dataset.pos.split(':');
+        const v = numIn(el);
+        const n = nodes[+i];
+        if (n && v != null) n.pos[+a] = v;
+      } else if (el.dataset.rot) {
+        const [i, a] = el.dataset.rot.split(':');
+        const v = numIn(el);
+        const n = nodes[+i];
+        if (n && v != null) n.rot[+a] = v;
+      } else if (el.dataset.field) {
+        const [i, key] = el.dataset.field.split(':');
+        const n = nodes[+i];
+        const f = n?.fields.find((x) => x.key === key);
+        if (f) {
+          if (f.type === 'text') f.value = el.value;
+          else { const v = numIn(el); if (v != null) { f.value = v; if (isSizeField(n.kind, key)) resetScaleOnSizeEdit(n); } }
+        }
+      }
+    };
     host.querySelectorAll('[data-field], [data-pos], [data-rot], [data-clear], [data-hollow], [data-fillet]').forEach((el) => {
-      el.addEventListener('blur', () => { if (!this._partEditorFocused()) this._renderBuildTree(); });
+      el.addEventListener('blur', () => {
+        syncFieldToModel(el);
+        if (!this._partEditorFocused()) {
+          this._scheduleRecompile();
+          this._renderBuildTree();
+        }
+      });
     });
     host.querySelectorAll('[data-gpos]').forEach((el) => el.addEventListener('input', () => {
       onNumInput(el, (v) => this._moveGroupCentre(+el.dataset.gpos, v));
@@ -271,23 +364,7 @@ class BuildPaneRenderers {
         this._syncGroupTransformFields();
       });
     });
-    host.querySelectorAll('[data-pos]').forEach((el) => el.addEventListener('input', () => {
-      const [i, a] = el.dataset.pos.split(':');
-      onNumInput(el, (v) => { nodes[+i].pos[+a] = v; });
-    }));
-    host.querySelectorAll('[data-rot]').forEach((el) => el.addEventListener('input', () => {
-      const [i, a] = el.dataset.rot.split(':');
-      onNumInput(el, (v) => { nodes[+i].rot[+a] = v; });
-    }));
-    host.querySelectorAll('[data-clear]').forEach((el) => el.addEventListener('input', () => {
-      onNumInput(el, (v) => { nodes[+el.dataset.clear].clearance = v; });
-    }));
-    host.querySelectorAll('[data-hollow]').forEach((el) => el.addEventListener('input', () => {
-      onNumInput(el, (v) => { nodes[+el.dataset.hollow].hollow = Math.max(0, v); });
-    }));
-    host.querySelectorAll('[data-fillet]').forEach((el) => el.addEventListener('input', () => {
-      onNumInput(el, (v) => { nodes[+el.dataset.fillet].fillet = Math.max(0, v); });
-    }));
+    // pos/rot/dimension numeric fields — handled by _ensurePartFieldDelegates()
     host.querySelectorAll('[data-bevel]').forEach((el) => el.addEventListener('change', () => {
       nodes[+el.dataset.bevel].bevel = el.checked; this._scheduleRecompile();
     }));
@@ -307,10 +384,7 @@ class BuildPaneRenderers {
     if (!host) return;
     const nodes = this.buildTree.nodes;
     host.innerHTML = '';
-    if (!nodes.length) {
-      host.innerHTML = '<p class="muted">Tap + to add your first part, then mark each one solid or hole.</p>';
-      return;
-    }
+    if (!nodes.length) return;
     const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
     // small type glyph per shape — mirrors the Add gallery so they read the same
     const KIND_ICON = {

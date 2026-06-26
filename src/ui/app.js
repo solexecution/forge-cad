@@ -130,8 +130,12 @@ export class App {
     this.recompile(true);
     this._pushHistory();
     this._initProjects(); // restore last project (or adopt the starter as the first)
+    this._ensurePartFieldDelegates?.();
     this.viewport.homeView(); // open framed on the whole plate, from the front
-    this.root.querySelector('#boot').classList.add('gone');
+    const boot = this.root.querySelector('#boot');
+    boot.classList.add('gone');
+    boot.setAttribute('aria-hidden', 'true');
+    boot.inert = true;
   }
 
   // --- floating / dockable / customizable left toolbar ----------------------
@@ -207,6 +211,17 @@ export class App {
     if (error) {
       this._showCompileError?.(error);
       this._setStatus('error');
+      if (this.mode === 'code') {
+        if (this.currentModel) {
+          try { this.currentModel.delete(); } catch { /* freed */ }
+        }
+        this.currentModel = null;
+        this._disposeColoredParts();
+        this.viewport.setEditMode(false);
+        this.viewport.setModel(null);
+        this.viewport.setGhost(null);
+        this._updateHUD(null);
+      }
       return;
     }
     this._showCompileError?.(null);
@@ -270,7 +285,7 @@ export class App {
     this.viewport.setEditShapes(items);
     this.selectedNodes = this.selectedNodes.filter((i) => i < this.buildTree.nodes.length);
     this.viewport.setSelection(this.selectedNodes, this._transformSet());
-    this._highlightBuildRows();
+    this._syncPartsListSelection?.();
     this._renderAlignBar();
     this._updatePartsHeader();
     this._syncGroupTransformFields();
@@ -782,11 +797,14 @@ export class App {
     });
     if (!any) return;
     this.viewport.shiftSelected(d[0], d[1], d[2]);
-    const host = this.root.querySelector('#build-list');
-    if (host) sel.forEach((i) => {
-      const n = nodes[i]; if (!n) return;
-      ['0', '1', '2'].forEach((a) => { const el = host.querySelector(`input[data-pos="${i}:${a}"]`); if (el) el.value = n.pos[+a]; });
-    });
+    const syncPosFields = (i, n) => {
+      ['0', '1', '2'].forEach((a) => {
+        const v = n.pos[+a];
+        const pel = this.root.querySelector(`#part-modal-fields input[data-pos="${i}:${a}"]`);
+        if (pel && document.activeElement !== pel) pel.value = v;
+      });
+    };
+    sel.forEach((i) => { const n = nodes[i]; if (n) syncPosFields(i, n); });
     this._recompileMergedHUD();
     this._scheduleHistory();
   }
@@ -1202,7 +1220,7 @@ export class App {
     if (!n) return;
     const dx = pos[0] - n.pos[0], dy = pos[1] - n.pos[1], dz = pos[2] - n.pos[2];
     const sel = this._transformSet().includes(i) ? this._transformSet() : [i];
-    const host = this.root.querySelector('#build-list');
+    const host = this.root.querySelector('#part-modal-fields');
     sel.forEach((j) => {
       const m = nodes[j]; if (!m) return;
       m.pos = (j === i) ? pos : [m.pos[0] + dx, m.pos[1] + dy, m.pos[2] + dz];

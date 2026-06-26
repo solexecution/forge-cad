@@ -129,7 +129,9 @@ export async function selectNode(page, i, additive = false) {
 export async function setPos(page, i, axis, value) {
   const sel = `[data-pos="${i}:${axis}"]`;
   await expect(page.locator(sel)).toBeVisible();
-  await page.locator(sel).fill(String(value));
+  const loc = page.locator(sel);
+  await loc.fill(String(value));
+  await loc.blur();
   await page.waitForFunction(
     ({ i, axis, value }) => window.__forgeApp.buildTree.nodes[i].pos[axis] === value,
     { i, axis, value },
@@ -140,7 +142,9 @@ export async function setPos(page, i, axis, value) {
 export async function setRot(page, i, axis, value) {
   const sel = `[data-rot="${i}:${axis}"]`;
   await expect(page.locator(sel)).toBeVisible();
-  await page.locator(sel).fill(String(value));
+  const loc = page.locator(sel);
+  await loc.fill(String(value));
+  await loc.blur();
   await page.waitForFunction(
     ({ i, axis, value }) => window.__forgeApp.buildTree.nodes[i].rot[axis] === value,
     { i, axis, value },
