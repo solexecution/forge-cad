@@ -135,7 +135,8 @@ export class Viewport {
     this.onTransformEnd = null;    // (index)
     this._groupPivot = null;       // gizmo anchor at selection centre (2+ parts)
     this._groupXformLocals = null; // each member's matrix relative to the pivot
-    this._groupPivotCenter = null; // selection centre when the current drag started
+    this._groupPivotCenter = null; // selection centre when the current drag started (local)
+    this._groupPivotCenterWorld = null; // pivot world position at drag start (translate)
     this._groupScaleBaseline = null; // per-member pos/rot/scale at drag start (scale mode)
     this._singleScaleRot = null;     // locked euler while a lone part is being scaled
     this._cutPlanePivot = null;      // movable laser-cut plane (build mode)
@@ -612,6 +613,7 @@ export class Viewport {
     const beginShapeDrag = (hit, additive) => {
       const idx = hit.object.userData.index;
       if (this.onSelect) this.onSelect(idx, additive);
+      this._refreshTransformSet();
       if (additive) return; // shift-click toggles selection, no drag
       const locked = this.editMeshes.find((e) => e.index === idx)?.lock;
       if (locked) return; // select only — don't move a locked shape
@@ -909,6 +911,13 @@ export class Viewport {
     this.setTransformMode(mode === 'scale' ? 'translate' : mode);
   }
 
+  _refreshTransformSet() {
+    if (this.getTransformSet) {
+      const fresh = this.getTransformSet();
+      if (fresh?.length) this.transformSet = fresh.slice();
+    }
+  }
+
   // Selection AABB centre in editGroup local space (matches app._selectionBounds).
   // expandByObject() returns world coords — wrong to assign as a child position
   // when editGroup is rotated for Z-up display.
@@ -935,6 +944,7 @@ export class Viewport {
   // pivot at the selection centre so move/rotate/scale is one rigid body.
   _syncGroupGizmo() {
     if (this._cutPlaneActive) return false;
+    this._refreshTransformSet();
     const ts = this.transformSet;
     const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
     if (!this.gizmo || !this.editActive) return false;
@@ -973,6 +983,10 @@ export class Viewport {
   _captureGroupScaleBaseline(indices) {
     const D = 180 / Math.PI;
     this._groupPivotCenter = this._xfCenter.clone();
+    if (this._groupPivot) {
+      this._groupPivot.updateMatrixWorld(true);
+      this._groupPivotCenterWorld = this._groupPivot.getWorldPosition(new THREE.Vector3());
+    }
     this._groupScaleBaseline = [];
     for (const i of indices) {
       const em = this.editMeshes.find((e) => e.index === i);
@@ -991,6 +1005,7 @@ export class Viewport {
     this._groupXformLocals = null;
     this._groupScaleBaseline = null;
     this._groupPivotCenter = null;
+    this._groupPivotCenterWorld = null;
   }
 
   // Scale the group around the pivot centre without touching each part's rotation.
@@ -1032,8 +1047,13 @@ export class Viewport {
 
   // Move the group rigidly — translation only, rotation/scale frozen at drag start.
   _propagateGroupTranslateTransform() {
-    if (!this._groupScaleBaseline || !this._groupPivotCenter || !this.onGroupTransform) return;
-    const d = new THREE.Vector3().subVectors(this._groupPivot.position, this._groupPivotCenter);
+    if (!this._groupScaleBaseline || this._groupPivotCenterWorld == null || !this.onGroupTransform) return;
+    const now = new THREE.Vector3();
+    this._groupPivot.getWorldPosition(now);
+    const dWorld = now.sub(this._groupPivotCenterWorld);
+    const invQ = new THREE.Quaternion();
+    this.editGroup.getWorldQuaternion(invQ).invert();
+    const d = dWorld.applyQuaternion(invQ);
     const rnd = (v, n) => { const x = Math.round(v * 10 ** n) / 10 ** n; return x === 0 ? 0 : x; };
     const updates = [];
     const D = 180 / Math.PI;
@@ -1622,7 +1642,8 @@ export class Viewport {
     }
 
     const valid = this.selectedSet.filter((i) => this.editMeshes.some((e) => e.index === i));
-    this.setSelection(valid);
+    const ts = this.getTransformSet ? this.getTransformSet() : valid;
+    this.setSelection(valid, ts);
   }
 
   // Highlight a set of shapes; the LAST one is the primary (outline). Gizmo uses

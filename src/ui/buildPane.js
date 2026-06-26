@@ -164,7 +164,9 @@ class BuildPaneRenderers {
           <div class="bn-fields">${mainDims}</div>
           ${edgeDims ? `<div class="bn-fields bn-edge">${edgeDims}</div><span class="bn-clear-hint">edge size — overall W/D/H stay as above</span>` : ''}
         </div>
-        <details class="bn-sec"${isGroup ? '' : ' open'}>
+        ${isGroup
+          ? '<p class="bn-clear-hint">Per-part position is locked while grouped — use <strong>Group position &amp; rotation</strong> above.</p>'
+          : `<details class="bn-sec" open>
           <summary>Position &amp; rotation</summary>
           <div class="bn-fields bn-xyz">
             <label data-unit="mm">x<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[0]}" data-pos="${idx}:0"></label>
@@ -174,7 +176,7 @@ class BuildPaneRenderers {
             <label data-unit="°">ry<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[1]}" data-rot="${idx}:1"></label>
             <label data-unit="°">rz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[2]}" data-rot="${idx}:2"></label>
           </div>
-        </details>
+        </details>`}
         ${hasMore ? `<details class="bn-sec">
           <summary>More options</summary>
           ${(supportsClearance(node.kind) || isShellable(node.kind)) ? `<div class="bn-clear">

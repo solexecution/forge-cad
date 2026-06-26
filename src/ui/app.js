@@ -1180,6 +1180,20 @@ export class App {
     this.viewport.setCutPlanePose(this._cutPlaneSeedCenter(), plane.normal);
   }
 
+  _syncTransformMeshes(indices, nodes) {
+    const D = Math.PI / 180;
+    for (const j of indices) {
+      const em = this.viewport.editMeshes?.find((e) => e.index === j);
+      const m = nodes[j];
+      if (!em || !m) continue;
+      em.mesh.position.set(m.pos[0], m.pos[1], m.pos[2]);
+      const r = m.rot || [0, 0, 0];
+      em.mesh.rotation.set(r[0] * D, r[1] * D, r[2] * D);
+      const s = m.scale || [1, 1, 1];
+      em.mesh.scale.set(s[0], s[1], s[2]);
+    }
+  }
+
   // live during a drag: move the shape (whole group moves together) + reflect
   // in the panel, no recompile
   _onShapeMove(i, pos) {
@@ -1197,6 +1211,7 @@ export class App {
         if (el && document.activeElement !== el) el.value = m.pos[+a];
       });
     });
+    if (sel.length > 1) this._syncTransformMeshes(sel, nodes);
   }
 
   // drag finished: settle the merged solid + HUD (export needs it current)
@@ -1204,12 +1219,17 @@ export class App {
     const nodes = this.buildTree.nodes;
     const n = nodes[i];
     if (!n) return;
-    const dx = pos[0] - n.pos[0], dy = pos[1] - n.pos[1], dz = pos[2] - n.pos[2];
     const sel = this._transformSet().includes(i) ? this._transformSet() : [i];
-    sel.forEach((j) => {
-      const m = nodes[j]; if (!m) return;
-      m.pos = (j === i) ? pos : [m.pos[0] + dx, m.pos[1] + dy, m.pos[2] + dz];
-    });
+    if (sel.length > 1) {
+      sel.forEach((j) => {
+        const em = this.viewport.editMeshes?.find((e) => e.index === j);
+        const m = nodes[j];
+        if (!em || !m) return;
+        m.pos = [em.mesh.position.x, em.mesh.position.y, em.mesh.position.z];
+      });
+    } else {
+      n.pos = pos;
+    }
     if (sel.length > 1) this.recompile();
     else this._recompileMergedHUD();
     this._pushHistory();
@@ -1289,6 +1309,8 @@ export class App {
       const m = nodes[j]; if (!m) return;
       ['0', '1', '2'].forEach((a) => { set(`input[data-pos="${j}:${a}"]`, m.pos[+a]); set(`input[data-rot="${j}:${a}"]`, m.rot[+a]); });
     });
+    if (sel.length > 1) this._syncTransformMeshes(sel, nodes);
+    this._syncGroupTransformFields();
   }
 
   // Single shape: cheap merged-only refresh. Group: rebuild every edit mesh so
