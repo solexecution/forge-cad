@@ -299,6 +299,7 @@ export function installCodeEditor(app) {
   let paramsH = DEFAULT_PARAMS_H;
   let editorPaneH = null;
   let paramsCollapsed = false;
+  let splittingParams = false;
   let wrapOn = false;
   let sidebarW = DEFAULT_CODE_CARD_W;
   try {
@@ -338,7 +339,7 @@ export function installCodeEditor(app) {
 
   /** Keep the editor block size stable; params bar absorbs workspace height changes. */
   function applyParamsFromEditorAnchor() {
-    if (paramsCollapsed) return;
+    if (paramsCollapsed || splittingParams) return;
     const h = workspaceH(workspace);
     if (h <= 0) return;
     if (editorPaneH == null) syncEditorPaneH();
@@ -460,14 +461,22 @@ export function installCodeEditor(app) {
   // --- resizable params bar (drag splitter up/down) ---
   if (splitter) {
     let drag = null;
+    const syncEditorFromParams = () => {
+      const h = workspaceH(workspace);
+      if (h > 0) {
+        editorPaneH = clampEditorPaneH(workspace, h - splitterPx() - paramsH, splitterPx());
+      }
+    };
     const onMove = (e) => {
       if (!drag) return;
       const dy = e.clientY - drag.y;
       setParamsH(drag.h + dy);
+      syncEditorFromParams();
     };
     const onUp = () => {
       if (!drag) return;
       drag = null;
+      splittingParams = false;
       splitter.classList.remove('dragging');
       document.body.style.cursor = '';
       document.removeEventListener('pointermove', onMove);
@@ -477,6 +486,7 @@ export function installCodeEditor(app) {
     splitter.addEventListener('pointerdown', (e) => {
       if (paramsCollapsed) return;
       e.preventDefault();
+      splittingParams = true;
       drag = { y: e.clientY, h: paramsH };
       splitter.classList.add('dragging');
       document.body.style.cursor = 'row-resize';
