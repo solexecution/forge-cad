@@ -11,7 +11,7 @@ import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, regist
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { applyLevel, printReadyReport } from './placeOps.js';
+import { applyLevel, printReadyReport, seatOnPlate } from './placeOps.js';
 import { buildTreeToSource, buildColoredParts, BuildTree, bakeNodeScale } from './buildtree.js';
 import { ADDABLE_KINDS } from './primitives.js';
 import { nodeToGeometry } from './nodeGeometry.js';
@@ -510,6 +510,7 @@ export class App {
       n.pos = rotPt(n.pos[0], n.pos[1], n.pos[2]);
       n.rot[axis] = rnd(n.rot[axis] + deltaDeg);
     });
+    this._seatAfterRotate(ts);
     this.viewport.setSelection(this.selectedNodes, ts);
     this._scheduleRecompile();
   }
@@ -881,6 +882,27 @@ export class App {
     this._pushHistory();
   }
 
+  // Seat the selection on the build plate (lowest point at z=0).
+  _seatOnPlate(sel = this._placeSet()) {
+    return seatOnPlate(this.buildTree.nodes, sel, (i) => this.viewport.shapeExtent(i));
+  }
+
+  // After rotation, lift the selection so its bottom rests on the plate, not its centre.
+  _seatAfterRotate(sel) {
+    if (!this._seatOnPlate(sel)) return;
+    const nodes = this.buildTree.nodes;
+    this._syncTransformMeshes(sel, nodes);
+    const hostList = this.root.querySelector('#build-list');
+    const hostModal = this.root.querySelector('#part-modal-fields');
+    const set = (host, q, v) => { const el = host?.querySelector(q); if (el && document.activeElement !== el) el.value = v; };
+    sel.forEach((j) => {
+      const m = nodes[j]; if (!m) return;
+      set(hostList, `input[data-pos="${j}:2"]`, m.pos[2]);
+      set(hostModal, `input[data-pos="${j}:2"]`, m.pos[2]);
+    });
+    this._syncGroupTransformFields();
+  }
+
   // place ops on the selection: drop to plate, center, level (reset rot), reset scale
   _placeOp(act) {
     if (act === 'stack') return this._stack();
@@ -890,16 +912,7 @@ export class App {
     const rnd = (v) => Math.round(v * 100) / 100 || 0;
 
     if (act === 'drop') {
-      // Seat the whole selection (or group) on the plate — one shared Z shift.
-      let groupMinZ = Infinity;
-      sel.forEach((i) => {
-        const n = nodes[i], ext = this.viewport.shapeExtent(i);
-        if (!n || !ext) return;
-        groupMinZ = Math.min(groupMinZ, n.pos[2] + ext.minZ);
-      });
-      if (groupMinZ === Infinity) return;
-      const shift = -groupMinZ;
-      sel.forEach((i) => { const n = nodes[i]; if (n) n.pos[2] = rnd(n.pos[2] + shift); });
+      this._seatOnPlate(sel);
     } else if (act === 'center') {
       // Centre the selection's bounding box on the plate origin (XY).
       const bb = this._selectionBounds(sel);
@@ -1292,6 +1305,9 @@ export class App {
         if (rel && document.activeElement !== rel) rel.value = m.rot[+a];
       });
     });
+    if (this.viewport.transformMode === 'rotate') {
+      this._seatAfterRotate(updates.map((u) => u.index));
+    }
     this._syncGroupTransformFields();
   }
 
@@ -1349,12 +1365,16 @@ export class App {
       ['0', '1', '2'].forEach((a) => { set(`input[data-pos="${j}:${a}"]`, m.pos[+a]); set(`input[data-rot="${j}:${a}"]`, m.rot[+a]); });
     });
     if (sel.length > 1) this._syncTransformMeshes(sel, nodes);
+    if (this.viewport.transformMode === 'rotate') this._seatAfterRotate(sel);
     this._syncGroupTransformFields();
   }
 
   // Single shape: cheap merged-only refresh. Group: rebuild every edit mesh so
   // the non-primary members (which the gizmo doesn't move live) catch up.
   _onTransformEnd() {
+    if (this.viewport.transformMode === 'rotate' && this._transformSet().length > 1) {
+      this.viewport._syncGroupGizmo?.();
+    }
     if (this._transformSet().length > 1) this.recompile();
     else this._recompileMergedHUD();
     this._pushHistory();

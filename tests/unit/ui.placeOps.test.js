@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyLevel, printReadyReport } from '../../src/ui/placeOps.js';
+import { applyLevel, printReadyReport, seatOnPlate } from '../../src/ui/placeOps.js';
 
 describe('applyLevel', () => {
   it('resets solid rotation but skips holes', () => {
@@ -11,6 +11,22 @@ describe('applyLevel', () => {
     expect(nodes[0].rot).toEqual([0, 0, 0]);
     expect(nodes[1].rot).toEqual([90, 0, 0]);
     expect(skipped).toBe(1);
+  });
+});
+
+describe('seatOnPlate', () => {
+  it('shifts nodes up so the lowest extent rests on z=0', () => {
+    const nodes = [{ pos: [0, 0, 10] }, { pos: [5, 0, 8] }];
+    const extents = { 0: { minZ: -4, maxZ: 4 }, 1: { minZ: -2, maxZ: 2 } };
+    expect(seatOnPlate(nodes, [0, 1], (i) => extents[i])).toBe(true);
+    expect(nodes[0].pos[2]).toBe(4);
+    expect(nodes[1].pos[2]).toBe(2);
+  });
+
+  it('returns false when already seated', () => {
+    const nodes = [{ pos: [0, 0, 4] }];
+    expect(seatOnPlate(nodes, [0], () => ({ minZ: -4, maxZ: 4 }))).toBe(false);
+    expect(nodes[0].pos[2]).toBe(4);
   });
 });
 

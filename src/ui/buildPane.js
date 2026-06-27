@@ -71,6 +71,8 @@ class BuildPaneRenderers {
         const v = numIn(el);
         if (!n || v == null) return;
         n.rot[+a] = v;
+        this._syncTransformMeshes([+i], nodes);
+        this._seatAfterRotate([+i]);
         this._scheduleRecompile();
       } else if (el.dataset.field) {
         const [i, key] = el.dataset.field.split(':');
@@ -345,6 +347,11 @@ class BuildPaneRenderers {
     host.querySelectorAll('[data-field], [data-pos], [data-rot], [data-clear], [data-hollow], [data-fillet]').forEach((el) => {
       el.addEventListener('blur', () => {
         syncFieldToModel(el);
+        if (el.dataset.rot) {
+          const i = +el.dataset.rot.split(':')[0];
+          this._syncTransformMeshes([i], this.buildTree.nodes);
+          this._seatAfterRotate([i]);
+        }
         if (!this._partEditorFocused()) {
           this._scheduleRecompile();
           this._renderBuildTree();

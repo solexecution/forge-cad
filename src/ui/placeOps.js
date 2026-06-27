@@ -12,6 +12,23 @@ export function applyLevel(nodes, indices) {
   return skippedHoles;
 }
 
+/** Shift selection up so the lowest point rests on z=0 (build plate). */
+export function seatOnPlate(nodes, sel, extentFor) {
+  if (!sel?.length) return false;
+  const rnd = (v) => Math.round(v * 100) / 100 || 0;
+  let groupMinZ = Infinity;
+  sel.forEach((i) => {
+    const n = nodes[i];
+    const ext = extentFor(i);
+    if (!n || !ext) return;
+    groupMinZ = Math.min(groupMinZ, n.pos[2] + ext.minZ);
+  });
+  if (groupMinZ === Infinity || Math.abs(groupMinZ) < 0.005) return false;
+  const shift = -groupMinZ;
+  sel.forEach((i) => { const n = nodes[i]; if (n) n.pos[2] = rnd(n.pos[2] + shift); });
+  return true;
+}
+
 /** Bounding-box size [x, y, z] and minZ from a { min, max } box. */
 export function bboxSize(bb) {
   if (!bb) return null;

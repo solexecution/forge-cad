@@ -199,6 +199,34 @@ test.describe('place operations', () => {
     expect((await getNode(page, i)).pos[2]).toBeLessThan(50);
   });
 
+  test('rotating a part keeps its base on the plate', async ({ page }) => {
+    await gotoApp(page);
+    await ensureBuildMode(page);
+    const i = await addShape(page, 'box');
+    await selectNode(page, i);
+
+    const baseBefore = await page.evaluate((i) => {
+      const a = window.__forgeApp;
+      return a.buildTree.nodes[i].pos[2] + a.viewport.shapeExtent(i).minZ;
+    }, i);
+    expect(Math.abs(baseBefore)).toBeLessThan(0.01);
+
+    await page.evaluate((i) => {
+      const a = window.__forgeApp;
+      a.buildTree.nodes[i].rot[0] = 45;
+      a._syncTransformMeshes([i], a.buildTree.nodes);
+      a._seatAfterRotate([i]);
+      a.recompile();
+    }, i);
+
+    const baseAfter = await page.evaluate((i) => {
+      const a = window.__forgeApp;
+      return a.buildTree.nodes[i].pos[2] + a.viewport.shapeExtent(i).minZ;
+    }, i);
+    expect(Math.abs(baseAfter)).toBeLessThan(0.01);
+    expect((await getNode(page, i)).rot[0]).toBe(45);
+  });
+
   test('mirror [data-flip="x"] flips the X scale sign', async ({ page }) => {
     await gotoApp(page);
     await ensureBuildMode(page);
