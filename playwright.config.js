@@ -4,7 +4,8 @@ import { defineConfig, devices } from '@playwright/test';
 // SwiftShader). Tests load with `?nosw` to bypass the PWA service worker
 // and assert against `window.__forgeApp` state where possible.
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './tests',
+  testMatch: ['e2e/**/*.spec.js', 'qa/**/*.spec.js'],
   fullyParallel: true,
   forbidOnly: false,
   // Each test boots a manifold-3d WASM kernel + a SwiftShader WebGL context, so

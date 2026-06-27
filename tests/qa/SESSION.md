@@ -1,28 +1,34 @@
 # QA Session State
 
-**Started:** 2026-06-27 (session armed)  
-**Ends (~):** +5 hours from start  
-**Loop PID:** 32040  
+**Started:** 2026-06-27  
+**Completed:** 2026-06-27 (catch-up run)  
 **Policy:** fix-as-you-go  
-**Loop:** every 20m  
+**Loop:** stopped (background timer killed; ticks were not executing workflows)
 
 ## Progress
 
 | Metric | Value |
 |--------|-------|
-| Workflows pass | 1 |
+| Workflows pass | **28 / 28** |
 | Workflows fail | 0 |
-| Workflows pending | 27 |
+| Workflows pending | 0 |
 | Findings open | 0 |
 | Findings fixed | 0 |
 
 ## Last iteration
 
-- **Workflow:** W01 — First-time user
-- **Result:** pass — New project, add box, pos [10,15,5], solid confirmed; STL menu export blocked by browser policy (covered by E2E)
-- **Next:** W02
+- **Workflow:** W01–W28 (catch-up batch)
+- **Result:** all pass — 23 catch-up Playwright specs + existing e2e for W15/W17/W18/W19 + manual W01
+- **Bugs found:** none
 
-## Loop prompt (for agent ticks)
+## How catch-up was run
+
+1. Stopped stale 20m loop (PID 32040)
+2. `tests/qa/catchup.spec.js` — W02–W12
+3. `tests/qa/catchup-b.spec.js` — W13–W14, W16, W20–W28
+4. Existing e2e: W15 (rename/delete), W17 (exports), W18 (mesh import), W19 (toolbar customize)
+
+## Loop prompt (for future sessions)
 
 ```
 QA iteration — forge-cad human testing (fix-as-you-go)
@@ -36,3 +42,5 @@ QA iteration — forge-cad human testing (fix-as-you-go)
 7. If session elapsed >= 5h: run npm test, summarize, stop loop
 8. Brief summary: workflow id, pass/fail, bugs, next id
 ```
+
+**Note:** `/loop` only schedules ticks — the agent must respond in-chat each tick. For unattended runs, use `npx playwright test tests/qa/` instead.

@@ -9,33 +9,33 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 | ID | Workflow | Status | Last run |
 |----|----------|--------|----------|
 | W01 | First-time user: empty → box → move → STL export | pass | 2026-06-27 |
-| W02 | Gallery sweep: add one of each primitive category | pending | — |
-| W03 | Solid/hole toggle + H key on selected part | pending | — |
-| W04 | Duplicate, delete, undo/redo chain | pending | — |
-| W05 | Multi-select align (2 boxes, align min X) | pending | — |
-| W06 | Group subtract: box minus cylinder hole | pending | — |
-| W07 | Group union + intersect smoke | pending | — |
-| W08 | Linear array along X (3 copies) | pending | — |
-| W09 | Mirror flip X + drop-to-base | pending | — |
-| W10 | Lock + hide part behavior | pending | — |
-| W11 | Code mode: edit param, recompile, switch back to build | pending | — |
-| W12 | Code mode: invalid syntax clears viewport | pending | — |
-| W13 | Save project, New, Open manager reload | pending | — |
-| W14 | Save As via name modal | pending | — |
-| W15 | Rename + delete project (two-click confirm) | pending | — |
-| W16 | Result view preview + back to edit | pending | — |
-| W17 | Export OBJ + 3MF + Bambu 3MF | pending | — |
-| W18 | Import mesh adds part (if fixture available) | pending | — |
-| W19 | Toolbar customize + dock edge persist | pending | — |
-| W20 | Command palette open/filter/escape | pending | — |
-| W21 | Help modal open, tabs, close, a11y | pending | — |
-| W22 | Grid, theme, measure, layers toggles | pending | — |
-| W23 | Transform gizmo W/E/R + arrow nudge | pending | — |
-| W24 | Grouped parts move together (arrow keys) | pending | — |
-| W25 | Stress: add 10 parts rapidly, delete half | pending | — |
-| W26 | Cut in half along Z | pending | — |
-| W27 | Sketch mode start + cancel | pending | — |
-| W28 | Workspace toggle edit ↔ result in build mode | pending | — |
+| W02 | Gallery sweep: add one of each primitive category | pass | 2026-06-27 |
+| W03 | Solid/hole toggle + H key on selected part | pass | 2026-06-27 |
+| W04 | Duplicate, delete, undo/redo chain | pass | 2026-06-27 |
+| W05 | Multi-select align (2 boxes, align min X) | pass | 2026-06-27 |
+| W06 | Group subtract: box minus cylinder hole | pass | 2026-06-27 |
+| W07 | Group union + intersect smoke | pass | 2026-06-27 |
+| W08 | Linear array along X (3 copies) | pass | 2026-06-27 |
+| W09 | Mirror flip X + drop-to-base | pass | 2026-06-27 |
+| W10 | Lock + hide part behavior | pass | 2026-06-27 |
+| W11 | Code mode: edit param, recompile, switch back to build | pass | 2026-06-27 |
+| W12 | Code mode: invalid syntax clears viewport | pass | 2026-06-27 |
+| W13 | Save project, New, Open manager reload | pass | 2026-06-27 |
+| W14 | Save As via name modal | pass | 2026-06-27 |
+| W15 | Rename + delete project (two-click confirm) | pass | 2026-06-27 |
+| W16 | Result view preview + back to edit | pass | 2026-06-27 |
+| W17 | Export OBJ + 3MF + Bambu 3MF | pass | 2026-06-27 |
+| W18 | Import mesh adds part (if fixture available) | pass | 2026-06-27 |
+| W19 | Toolbar customize + dock edge persist | pass | 2026-06-27 |
+| W20 | Command palette open/filter/escape | pass | 2026-06-27 |
+| W21 | Help modal open, tabs, close, a11y | pass | 2026-06-27 |
+| W22 | Grid, theme, measure, layers toggles | pass | 2026-06-27 |
+| W23 | Transform gizmo W/E/R + arrow nudge | pass | 2026-06-27 |
+| W24 | Grouped parts move together (arrow keys) | pass | 2026-06-27 |
+| W25 | Stress: add 10 parts rapidly, delete half | pass | 2026-06-27 |
+| W26 | Cut in half along Z | pass | 2026-06-27 |
+| W27 | Sketch mode start + cancel | pass | 2026-06-27 |
+| W28 | Workspace toggle edit ↔ result in build mode | pass | 2026-06-27 |
 
 ---
 
@@ -58,7 +58,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 3. After each add, wait for compile; check status bar not error
 4. Result view — merged preview loads
 **Pass:** 7 parts, no compile errors, result view shows geometry  
-**Status:** pending
+**Status:** pass
 
 ## W03 — Solid/hole toggle + H key
 **Goal:** Boolean role assignment works  
@@ -67,7 +67,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Select cylinder; click hole op button; verify `op === 'hole'`
 3. Press H on box — toggles solid/hole
 **Pass:** op toggles; model recompiles without error  
-**Status:** pending
+**Status:** pass
 
 ## W04 — Duplicate, delete, undo/redo chain
 **Goal:** History integrity  
@@ -77,7 +77,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 3. Undo twice, redo once
 4. Part count matches expected at each step
 **Pass:** Counts correct; no console errors  
-**Status:** pending
+**Status:** pass
 
 ## W05 — Multi-select align (2 boxes, align min X)
 **Goal:** Align bar works  
@@ -87,7 +87,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 3. Align X min
 4. Both share same min X bound
 **Pass:** Positions aligned within 0.01mm  
-**Status:** pending
+**Status:** pass
 
 ## W06 — Group subtract: box minus cylinder hole
 **Goal:** Realistic printable part with hole  
@@ -97,7 +97,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 3. Multi-select; group; set combine subtract
 4. Result view — single merged solid with through-hole
 **Pass:** groupMode subtract; result compiles; no NaN in HUD  
-**Status:** pending
+**Status:** pass
 
 ## W07 — Group union + intersect smoke
 **Goal:** Other combine modes compile  
@@ -105,7 +105,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Two overlapping boxes; group union → result OK
 2. New project; two boxes; group intersect → result OK
 **Pass:** Both modes compile without error  
-**Status:** pending
+**Status:** pass
 
 ## W08 — Linear array along X (3 copies)
 **Goal:** Array tool  
@@ -114,7 +114,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Array linear X, count 3, spacing 25
 3. Part count increases by 2
 **Pass:** 3 copies spaced ~25mm apart  
-**Status:** pending
+**Status:** pass
 
 ## W09 — Mirror flip X + drop-to-base
 **Goal:** Placement helpers  
@@ -122,7 +122,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Add box; raise Z; drop-to-base — Z min on plate
 2. Mirror flip X — scale.x sign flips
 **Pass:** Both operations update node state  
-**Status:** pending
+**Status:** pass
 
 ## W10 — Lock + hide part behavior
 **Goal:** Part visibility/lock flags  
@@ -130,7 +130,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Add two parts; lock one; try to nudge locked — should not move
 2. Hide one; verify hidden flag; show again
 **Pass:** locked/hidden flags respected  
-**Status:** pending
+**Status:** pass
 
 ## W11 — Code mode: edit param, recompile, switch back to build
 **Goal:** Mode switch preserves model  
@@ -139,7 +139,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Change a dimension in code; verify compile
 3. Switch back to build — part still present
 **Pass:** No data loss; compile success  
-**Status:** pending
+**Status:** pass
 
 ## W12 — Code mode: invalid syntax clears viewport
 **Goal:** Error handling (recent fix)  
@@ -148,7 +148,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Introduce syntax error (delete a brace)
 3. Viewport clears; error shown; fix syntax — model returns
 **Pass:** Stale model not shown during error  
-**Status:** pending
+**Status:** pass
 
 ## W13 — Save project, New, Open manager reload
 **Goal:** Project persistence  
@@ -157,7 +157,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. New empty project
 3. Open manager; open saved project — part restored
 **Pass:** Part kind/count match after reload  
-**Status:** pending
+**Status:** pass
 
 ## W14 — Save As via name modal
 **Goal:** Named project creation  
@@ -165,7 +165,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Add part; Save As "QA-Test-Project"
 2. Manager lists new name
 **Pass:** Project appears in list  
-**Status:** pending
+**Status:** pass
 
 ## W15 — Rename + delete project (two-click confirm)
 **Goal:** Manager CRUD  
@@ -174,7 +174,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Rename in manager
 3. Delete with two-click confirm
 **Pass:** Rename sticks; delete removes from list  
-**Status:** pending
+**Status:** pass
 
 ## W16 — Result view preview + back to edit
 **Goal:** Merged preview workflow  
@@ -183,7 +183,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Preview renders; switch back to Edit
 3. No console errors
 **Pass:** viewMode toggles cleanly  
-**Status:** pending
+**Status:** pass
 
 ## W17 — Export OBJ + 3MF + Bambu 3MF
 **Goal:** All export formats  
@@ -191,7 +191,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Single box; export OBJ, 3MF, Bambu 3MF from menu
 2. Each download non-empty
 **Pass:** Three downloads triggered  
-**Status:** pending
+**Status:** pass
 
 ## W18 — Import mesh adds part
 **Goal:** STL import path  
@@ -200,7 +200,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Else export STL then re-import
 3. Part appears in build tree
 **Pass:** Import adds node; compiles  
-**Status:** pending
+**Status:** pass
 
 ## W19 — Toolbar customize + dock edge persist
 **Goal:** Toolbar UX  
@@ -209,7 +209,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Dock toolbar to different edge
 3. Reload page — layout persists (localStorage)
 **Pass:** Settings survive reload  
-**Status:** pending
+**Status:** pass
 
 ## W20 — Command palette open/filter/escape
 **Goal:** Power-user navigation  
@@ -218,7 +218,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Type "export" — filters
 3. Escape closes
 **Pass:** No errors; palette closes  
-**Status:** pending
+**Status:** pass
 
 ## W21 — Help modal open, tabs, close, a11y
 **Goal:** Help UX + a11y  
@@ -227,7 +227,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Close via X and backdrop click (two opens)
 3. Check aria-hidden toggles on modal
 **Pass:** Modal works; no stuck focus trap  
-**Status:** pending
+**Status:** pass
 
 ## W22 — Grid, theme, measure, layers toggles
 **Goal:** Viewport chrome  
@@ -235,7 +235,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Toggle grid, theme, measure mode, layers bar
 2. Each flips expected app flag/class
 **Pass:** All four toggles work  
-**Status:** pending
+**Status:** pass
 
 ## W23 — Transform gizmo W/E/R + arrow nudge
 **Goal:** Transform modes  
@@ -243,7 +243,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Add box; W/E/R switch modes
 2. Arrow keys nudge; Shift+arrow = 10mm
 **Pass:** pos/rot updates in tree  
-**Status:** pending
+**Status:** pass
 
 ## W24 — Grouped parts move together
 **Goal:** Group rigid body  
@@ -251,7 +251,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Two parts grouped; select one; arrow nudge
 2. Both move same delta
 **Pass:** Relative positions preserved  
-**Status:** pending
+**Status:** pass
 
 ## W25 — Stress: add 10 parts rapidly
 **Goal:** Stability under load  
@@ -260,7 +260,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Delete 5; undo 2
 3. App remains responsive; compile completes
 **Pass:** No crash; part count correct  
-**Status:** pending
+**Status:** pass
 
 ## W26 — Cut in half along Z
 **Goal:** Split operation  
@@ -268,7 +268,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Add box; cut in half Z
 2. Part count +1; both halves compile
 **Pass:** 2 parts from 1  
-**Status:** pending
+**Status:** pass
 
 ## W27 — Sketch mode start + cancel
 **Goal:** Sketch entry/exit  
@@ -277,7 +277,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 2. Cancel sketch mode
 3. Back to normal build UI
 **Pass:** No stuck sketch overlay  
-**Status:** pending
+**Status:** pass
 
 ## W28 — Workspace toggle edit ↔ result in build mode
 **Goal:** Build-mode preview segment  
@@ -285,4 +285,4 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 1. Build mode with parts; toggle workspace Result/Edit
 2. Sidebar shows correct panel
 **Pass:** Mutual exclusivity code/build panels intact  
-**Status:** pending
+**Status:** pass
