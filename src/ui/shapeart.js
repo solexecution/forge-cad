@@ -160,6 +160,42 @@ const ART = {
     `<circle cx="32" cy="26" r="9" fill="${C.void}" stroke="none"/>` +
     `<rect x="28" y="26" width="8" height="20" fill="${C.void}" stroke="none"/>`,
 
+  hingePin:
+    `<rect x="10" y="28" width="18" height="14" rx="1" fill="${C.mid}"/>` +
+    `<rect x="36" y="28" width="18" height="14" rx="1" fill="${C.mid}"/>` +
+    `<circle cx="32" cy="28" r="5" fill="${C.top}"/>` +
+    `<circle cx="32" cy="28" r="2" fill="${C.void}"/>` +
+    `<rect x="30" y="22" width="4" height="8" fill="${C.top}"/>`,
+  hingeHalf:
+    `<rect x="14" y="28" width="28" height="14" rx="1" fill="${C.mid}"/>` +
+    `<circle cx="14" cy="28" r="4.5" fill="${C.top}"/>` +
+    `<circle cx="14" cy="36" r="4.5" fill="${C.top}"/>` +
+    `<circle cx="14" cy="32" r="1.8" fill="${C.void}"/>`,
+  hingeFlex:
+    `<rect x="12" y="28" width="16" height="14" rx="1" fill="${C.mid}"/>` +
+    `<rect x="36" y="28" width="16" height="14" rx="1" fill="${C.mid}"/>` +
+    `<rect x="27" y="32" width="10" height="2" rx="1" fill="${C.top}"/>`,
+
+  lockSnap:
+    `<rect x="14" y="30" width="12" height="16" rx="1" fill="${C.mid}"/>` +
+    `<rect x="26" y="34" width="18" height="3" rx="0.5" fill="${C.top}"/>` +
+    `<path d="M44,34 v8 h-4 v-3 h-6" fill="none" stroke="${C.dark}" stroke-width="2"/>`,
+  lockHook:
+    `<rect x="14" y="30" width="10" height="16" rx="1" fill="${C.mid}"/>` +
+    `<rect x="24" y="34" width="16" height="4" fill="${C.top}"/>` +
+    `<path d="M40,34 v10 h-6 v-4" fill="none" stroke="${C.dark}" stroke-width="2"/>`,
+  lockPeg:
+    `<rect x="18" y="32" width="12" height="14" rx="1" fill="${C.mid}"/>` +
+    `<circle cx="24" cy="32" r="4" fill="${C.top}"/>`,
+  lockSlide:
+    `<rect x="14" y="30" width="10" height="16" rx="1" fill="${C.mid}"/>` +
+    `<rect x="24" y="35" width="14" height="3" fill="${C.top}"/>` +
+    `<rect x="34" y="33" width="5" height="7" rx="0.5" fill="${C.dark}"/>`,
+  lockKeeper:
+    `<rect x="14" y="28" width="14" height="18" rx="1" fill="${C.mid}"/>` +
+    `<rect x="28" y="32" width="16" height="10" rx="1" fill="${C.top}"/>` +
+    `<rect x="30" y="36" width="12" height="3" fill="${C.void}"/>`,
+
   // --- actions ---
   sketch:
     `<rect x="14" y="30" width="24" height="16" rx="1" stroke="${C.dark}" stroke-dasharray="3 3"/>` +

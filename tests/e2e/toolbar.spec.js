@@ -156,19 +156,21 @@ test('the sidebar code/build segment switches modes; old top-bar mode segments a
   await expect(page.locator('#mode-toggle, #view-mode-toggle, #mode-seg, #seg-code, #seg-build, #seg-result')).toHaveCount(0);
   await expect(page.locator('#workspace-toggle')).toBeVisible();
 
-  const code = page.locator('#card-mode-code');
-  const build = page.locator('#card-mode-build');
+  // Code/Build live in a segment on whichever panel is showing (build → the parts
+  // sidebar's segment, code → the editor card's). Drive the visible one each time.
+  const codeBtn = () => page.locator('.card-mode-opt[data-mode="code"]:visible').first();
+  const buildBtn = () => page.locator('.card-mode-opt[data-mode="build"]:visible').first();
 
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('build');
-  await expect(build).toHaveClass(/on/);
+  await expect(buildBtn()).toHaveClass(/on/);
 
-  await code.click();
+  await codeBtn().click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('code');
-  await expect(code).toHaveClass(/on/);
+  await expect(codeBtn()).toHaveClass(/on/);
 
-  await build.click();
+  await buildBtn().click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('build');
-  await expect(build).toHaveClass(/on/);
+  await expect(buildBtn()).toHaveClass(/on/);
 });
 
 test('the tier system is gone — no tier switch anywhere', async ({ page }) => {

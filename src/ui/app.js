@@ -12,7 +12,7 @@ import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
 import { applyLevel, printReadyReport, seatOnPlate } from './placeOps.js';
-import { buildTreeToSource, buildColoredParts, BuildTree, bakeNodeScale } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, BuildTree, bakeNodeScale, resetScaleOnSizeEdit } from './buildtree.js';
 import { ADDABLE_KINDS } from './primitives.js';
 import { nodeToGeometry } from './nodeGeometry.js';
 import { scoreOrientations } from '../kernel/orient.js';
@@ -104,6 +104,8 @@ export class App {
     this.histIdx = -1;
     this._restoring = false;
     this._editToolTab = 'move'; // move | place | multi — tabbed tools in the build edit column
+    this._inspectorClosed = false;
+    this._partsListOpen = true; // parts roster visible; auto-hides when inspector opens
   }
 
   async start() {
@@ -116,8 +118,6 @@ export class App {
         this._setSidebarOpen(true);
       }
       this._selectNode(i, additive);
-      if (i >= 0 && !additive) this._setPanelTab('edit');
-      else if (i < 0 && !additive && this._panelTab === 'edit') this._setPanelTab('parts');
     };
     this.viewport.onMultiArm = (on) => this._onMultiArm(on);
     // Tuck the parts panel on empty canvas tap (tablet); part picks keep it open.
@@ -144,6 +144,9 @@ export class App {
     this._pushHistory();
     this._initProjects(); // restore last project (or adopt the starter as the first)
     this._ensurePartFieldDelegates?.();
+    this._ensurePartsListDelegates?.();
+    this._ensureXformFieldDelegates?.();
+    this._ensureSizeMmDelegates?.();
     this.viewport.homeView(); // open framed on the whole plate, from the front
     const boot = this.root.querySelector('#boot');
     boot.classList.add('gone');
@@ -349,9 +352,13 @@ export class App {
   // Sidebar visible = edit; hidden = result preview. One control, both modes.
   _setSidebarOpen(open) {
     const card = this.root.querySelector('#part-card');
+    const parts = this.root.querySelector('#parts-sidebar');
+    const insp = this.root.querySelector('#inspector-panel');
     this.viewMode = open ? 'edit' : 'result';
     this._cardCollapsed = !open;
     if (card) card.classList.toggle('collapsed', !open);
+    if (parts) parts.classList.toggle('collapsed', !open);
+    if (insp) insp.classList.toggle('collapsed', !open);
     document.body.classList.toggle('view-result', !open);
 
     if (this.mode === 'build') {
@@ -399,7 +406,7 @@ export class App {
   }
 
   _syncCardModeSeg() {
-    this.root.querySelectorAll('#card-mode-seg .card-mode-opt').forEach((b) => {
+    this.root.querySelectorAll('.card-mode-seg .card-mode-opt').forEach((b) => {
       const on = b.dataset.mode === this.mode;
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -564,32 +571,103 @@ export class App {
     if (baked) this._scheduleRecompile();
     this._renderAlignBar();
     this._updatePartsHeader();
+    this._syncXformFields?.();
+    if (i >= 0 && !additive) {
+      this._inspectorClosed = false;
+      this._partsListOpen = false;
+    }
+    this._syncInspector();
   }
 
   _highlightBuildRows() {
     this._renderBuildTree(); // re-render the roster + the modal detail for the new selection
   }
 
-  // The unified card hosts both authoring surfaces (editor in code, parts
-  // inspector in build), so it shows in either mode — result hides it via the
-  // body.view-result CSS. _syncCardDomain swaps which content is visible.
+  // Build mode shows the parts roster + inspector; code mode shows the source card.
   _syncBuildTools() {
     const card = this.root.querySelector('#part-card');
-    if (card) card.classList.remove('hidden');
+    const parts = this.root.querySelector('#parts-sidebar');
+    if (card) card.classList.toggle('hidden', this.mode !== 'code');
+    if (parts) parts.classList.toggle('hidden', this.mode !== 'build');
+    document.body.classList.toggle('dom-code', this.mode === 'code');
+    document.body.classList.toggle('dom-build', this.mode === 'build');
     this._syncCardDomain();
+    this._syncInspector();
     this._syncCardModeSeg();
     this._applyCardLayout();
   }
 
-  // Flip the card between its two surfaces by mode: code adds .dom-code (CSS shows
-  // #pane-code, hides the build columns); build removes it (parts list / editor
-  // columns show). The header title follows via _updatePartsHeader.
   _syncCardDomain() {
-    const card = this.root.querySelector('#part-card');
-    if (!card) return;
-    card.classList.toggle('dom-code', this.mode === 'code');
     this._updatePartsHeader?.();
     this._syncCardModeSeg();
+  }
+
+  _syncBuildPanelDock(side) {
+    const dock = side === 'left' ? 'dock-left' : 'dock-right';
+    const other = side === 'left' ? 'dock-right' : 'dock-left';
+    for (const sel of ['#parts-sidebar', '#inspector-panel']) {
+      const el = this.root.querySelector(sel);
+      if (!el) continue;
+      el.classList.remove(other, 'float');
+      el.classList.add(dock);
+      el.style.left = el.style.top = el.style.right = el.style.bottom = '';
+    }
+    this._cardDock = side;
+    this._applyCardLayout();
+    this._saveCardDock();
+  }
+
+  // Parts list auto-hides when the inspector opens; use ☰ Parts or the edge tab to bring it back.
+  _syncInspector() {
+    const parts = this.root.querySelector('#parts-sidebar');
+    const insp = this.root.querySelector('#inspector-panel');
+    const empty = this.root.querySelector('#inspector-empty');
+    const content = this.root.querySelector('#inspector-content');
+    const buildEdit = this.mode === 'build' && this.viewMode === 'edit';
+    const hasPrimary = this.selectedNode >= 0 && this.buildTree.nodes[this.selectedNode];
+    const multiLoose = this.selectedNodes.length >= 2 && !this._isUnifiedGroupSelection();
+    const showContent = !!(hasPrimary || multiLoose);
+    const showInsp = buildEdit && showContent && !this._inspectorClosed;
+    // Desktop (side dock): parts list and inspector are two coexisting panels —
+    // keep the list visible so its per-part actions stay reachable while editing.
+    // Mobile (bottom sheets): show one at a time, toggled via ☰ Parts / the peek tab.
+    const sideLayout = this._layout !== 'bottom';
+    const partsHidden = !sideLayout && showInsp && !this._partsListOpen;
+
+    if (parts && buildEdit && !this._cardCollapsed) {
+      parts.classList.toggle('collapsed', partsHidden);
+    }
+    if (insp) {
+      insp.classList.toggle('hidden', !showInsp);
+      insp.classList.toggle('collapsed', this._cardCollapsed);
+    }
+    const ipTabs = this.root.querySelector('#ip-tabs');
+    if (ipTabs) ipTabs.classList.toggle('hidden', !showInsp);
+    document.body.classList.toggle('inspector-open', showInsp);
+    document.body.classList.toggle('parts-list-collapsed', partsHidden);
+    const partsToggle = this.root.querySelector('#inspector-parts-toggle');
+    const partsPeek = this.root.querySelector('#parts-peek');
+    if (partsToggle) {
+      partsToggle.hidden = !showInsp;
+      partsToggle.classList.toggle('on', this._partsListOpen);
+      partsToggle.title = this._partsListOpen ? 'Hide parts list' : 'Show parts list';
+    }
+    if (partsPeek) partsPeek.classList.toggle('hidden', !partsHidden);
+    if (empty) empty.classList.toggle('hidden', showContent);
+    if (content) content.classList.toggle('hidden', !showContent);
+    if (showInsp) this._renderBuildTree();
+    this._applyCardLayout();
+  }
+
+  _togglePartsList() {
+    this._partsListOpen = !this._partsListOpen;
+    this._syncInspector();
+  }
+
+  _closeInspector() {
+    this._inspectorClosed = true;
+    this._partsListOpen = true;
+    this._syncInspector();
   }
 
   // Keep the HUD (top-left) and nav-cube (top-right) clear of a side-docked
@@ -598,23 +676,153 @@ export class App {
     const stage = this.root.querySelector('.stage');
     if (!stage) return;
     const dock = this._cardDock || 'right';
-    // the HUD / nav-cube dodge an expanded side dock, but not during result preview
     const sideDock = this._layout !== 'bottom';
     const visible = sideDock && this.viewMode === 'edit';
     stage.classList.toggle('cardleft', visible && dock === 'left');
     stage.classList.toggle('cardright', visible && dock === 'right');
-    this.toolbar?.syncCardDock?.(dock, visible);
-    const minBtn = this.root.querySelector('#card-min');
-    if (minBtn) {
-      minBtn.textContent = dock === 'right' ? '»' : '«';
-      minBtn.title = 'Preview result (hide panel)';
+
+    let panelW = 0;
+    if (visible) {
+      if (this.mode === 'code') {
+        const card = this.root.querySelector('#part-card');
+        if (card && !card.classList.contains('collapsed')) {
+          panelW = card.getBoundingClientRect().width || parseFloat(getComputedStyle(card).width) || 360;
+        }
+      } else {
+        const parts = this.root.querySelector('#parts-sidebar');
+        const insp = this.root.querySelector('#inspector-panel');
+        const partsOpen = parts && !parts.classList.contains('collapsed') && !parts.classList.contains('hidden');
+        const inspOpen = insp && !insp.classList.contains('hidden') && !insp.classList.contains('collapsed');
+        if (partsOpen) {
+          const pw = parts.getBoundingClientRect().width || parseFloat(getComputedStyle(parts).width) || 260;
+          document.documentElement.style.setProperty('--parts-w', `${Math.round(pw)}px`);
+          panelW = pw;
+        } else if (inspOpen) {
+          document.documentElement.style.setProperty('--parts-w', '0px');
+        }
+        if (inspOpen) {
+          const iw = insp.getBoundingClientRect().width || parseFloat(getComputedStyle(insp).width) || 340;
+          document.documentElement.style.setProperty('--inspector-w', `${Math.round(iw)}px`);
+          panelW += iw;
+        }
+      }
     }
+    document.documentElement.style.setProperty('--sidebar-w', `${Math.round(panelW)}px`);
+
+    this.toolbar?.syncCardDock?.(dock, visible);
+    const minParts = this.root.querySelector('#parts-min');
+    const minCard = this.root.querySelector('#card-min');
+    const minGlyph = dock === 'right' ? '»' : '«';
+    const minTitle = 'Preview result (hide panel)';
+    if (minParts) { minParts.textContent = minGlyph; minParts.title = minTitle; }
+    if (minCard) { minCard.textContent = minGlyph; minCard.title = minTitle; }
     this._syncWorkspaceUI();
     this._applyParamsAnchor?.();
   }
 
   _saveCardDock() {
     try { localStorage.setItem('randr.cardDock', JSON.stringify({ mode: this._cardDock || 'right', collapsed: !!this._cardCollapsed })); } catch { /* quota */ }
+  }
+
+  _clampPanelW(w, min, maxFrac) {
+    const max = Math.floor(window.innerWidth * maxFrac);
+    return Math.min(max, Math.max(min, Math.round(w)));
+  }
+
+  _setPartsWidth(w, { persist = false } = {}) {
+    const parts = this.root.querySelector('#parts-sidebar');
+    if (!parts) return;
+    w = this._clampPanelW(w, 200, 0.38);
+    document.documentElement.style.setProperty('--parts-w', `${w}px`);
+    parts.style.width = `${w}px`;
+    if (persist) this._savePanelWidths();
+    this._applyCardLayout();
+  }
+
+  _setInspectorWidth(w, { persist = false } = {}) {
+    const insp = this.root.querySelector('#inspector-panel');
+    if (!insp) return;
+    w = this._clampPanelW(w, 240, 0.5);
+    document.documentElement.style.setProperty('--inspector-w', `${w}px`);
+    insp.style.width = `${w}px`;
+    if (persist) this._savePanelWidths();
+    this._applyCardLayout();
+  }
+
+  _savePanelWidths() {
+    const parts = this.root.querySelector('#parts-sidebar');
+    const insp = this.root.querySelector('#inspector-panel');
+    try {
+      localStorage.setItem('randr.panelWidths', JSON.stringify({
+        parts: parts?.getBoundingClientRect().width,
+        inspector: insp?.getBoundingClientRect().width,
+      }));
+    } catch { /* quota */ }
+  }
+
+  _loadPanelWidths() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('randr.panelWidths'));
+      if (saved?.parts > 0) this._setPartsWidth(saved.parts);
+      if (saved?.inspector > 0) this._setInspectorWidth(saved.inspector);
+    } catch { /* ignore */ }
+  }
+
+  // Drag the inner edge of a docked build panel (parts list or inspector).
+  _wirePanelResize(panel, handle, kind) {
+    if (!panel || !handle) return;
+    const apply = (w, opts = {}) => {
+      if (kind === 'parts') this._setPartsWidth(w, opts);
+      else this._setInspectorWidth(w, opts);
+    };
+    let drag = null;
+    const dockRight = () => panel.classList.contains('dock-right');
+    const onMove = (e) => {
+      if (!drag) return;
+      const dx = dockRight() ? drag.x - e.clientX : e.clientX - drag.x;
+      apply(drag.w + dx);
+    };
+    const onUp = (e) => {
+      if (!drag) return;
+      const dx = dockRight() ? drag.x - e.clientX : e.clientX - drag.x;
+      apply(drag.w + dx, { persist: true });
+      drag = null;
+      handle.classList.remove('dragging');
+      document.body.classList.remove('panel-resizing');
+      document.body.style.cursor = '';
+      try { handle.releasePointerCapture(e.pointerId); } catch { /* ok */ }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      if (panel.classList.contains('collapsed')) return;
+      if (!panel.classList.contains('dock-left') && !panel.classList.contains('dock-right')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      drag = { x: e.clientX, w: panel.getBoundingClientRect().width };
+      handle.classList.add('dragging');
+      document.body.classList.add('panel-resizing');
+      document.body.style.cursor = 'col-resize';
+      handle.setPointerCapture(e.pointerId);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    });
+    handle.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      apply(kind === 'parts' ? 260 : 340, { persist: true });
+    });
+  }
+
+  _initBuildPanelResize() {
+    const parts = this.root.querySelector('#parts-sidebar');
+    const insp = this.root.querySelector('#inspector-panel');
+    this._loadPanelWidths();
+    this._wirePanelResize(parts, this.root.querySelector('#parts-resize'), 'parts');
+    this._wirePanelResize(insp, this.root.querySelector('#inspector-resize'), 'inspector');
   }
 
   _initLayout() {
@@ -674,26 +882,26 @@ export class App {
   // Tabbed build tools (Move / Place / Multi). Buttons disable until the
   // selection meets each tool's requirement; Multi tab appears once 2+ parts
   // exist and auto-opens when 2+ are selected.
+  // Legacy tab id → collapsible inspector section. Callers that used to switch
+  // a tab (e.g. scale mode → Size) now just expand the matching section.
   _setEditToolTab(tab) {
     this._editToolTab = tab;
-    this.root.querySelectorAll('.edit-tool-tab').forEach((b) => {
-      const on = b.dataset.ttab === tab;
-      b.classList.toggle('on', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    this.root.querySelectorAll('.edit-tool-pane').forEach((p) => {
-      p.classList.toggle('on', p.dataset.ttab === tab);
-    });
+    const id = { move: 'sec-transform', size: 'sec-size', place: 'sec-arrange', multi: 'sec-combine' }[tab];
+    if (!id) return;
+    const sec = this.root.querySelector('#' + id);
+    if (sec && !sec.hidden) sec.open = true;
   }
 
   _renderAlignBar() {
     const sel = this.selectedNodes.length;
     const nodes = this.buildTree.nodes;
     const total = nodes.length;
-    const multiTab = this.root.querySelector('.edit-tool-tab[data-ttab="multi"]');
-    if (multiTab) multiTab.hidden = total < 2;
-    if (sel >= 2 && this._editToolTab !== 'multi') this._setEditToolTab('multi');
-    else if (sel < 2 && this._editToolTab === 'multi') this._setEditToolTab('move');
+    const combineSec = this.root.querySelector('#sec-combine');
+    if (combineSec) {
+      combineSec.hidden = total < 2;
+      if (sel >= 2) combineSec.open = true;
+      else if (sel < 2) combineSec.open = false;
+    }
 
     const disableBar = (id, disabled) => {
       const bar = this.root.querySelector(id);
@@ -983,7 +1191,8 @@ export class App {
     if (!this.buildTree.nodes || !this.buildTree.nodes.length) return;
     this.buildTree.nodes = [];
     this.selectedNodes = [];
-    if (this._panelTab === 'edit') this._setPanelTab('parts');
+    this._inspectorClosed = false;
+    this._syncInspector();
     this._renderBuildTree();
     this.recompile();
     this._pushHistory();
@@ -1258,15 +1467,11 @@ export class App {
     if (!n) return;
     const dx = pos[0] - n.pos[0], dy = pos[1] - n.pos[1], dz = pos[2] - n.pos[2];
     const sel = this._transformSet().includes(i) ? this._transformSet() : [i];
-    const host = this.root.querySelector('#part-modal-fields');
     sel.forEach((j) => {
       const m = nodes[j]; if (!m) return;
       m.pos = (j === i) ? pos : [m.pos[0] + dx, m.pos[1] + dy, m.pos[2] + dz];
-      if (host) ['0', '1', '2'].forEach((a) => {
-        const el = host.querySelector(`input[data-pos="${j}:${a}"]`);
-        if (el && document.activeElement !== el) el.value = m.pos[+a];
-      });
     });
+    this._syncXformFields();
     if (sel.length > 1) this._syncTransformMeshes(sel, nodes);
   }
 
@@ -1294,21 +1499,14 @@ export class App {
   // Rigid multi-part gizmo drag — pivot at selection centre (see viewport._syncGroupGizmo).
   _onGroupTransform(updates) {
     const nodes = this.buildTree.nodes;
-    const host = this.root.querySelector('#part-modal-fields');
     updates.forEach((u) => {
       const m = nodes[u.index];
       if (!m) return;
       m.pos = u.pos;
       m.rot = u.rot;
       m.scale = u.scale;
-      if (!host) return;
-      ['0', '1', '2'].forEach((a) => {
-        const pel = host.querySelector(`input[data-pos="${u.index}:${a}"]`);
-        const rel = host.querySelector(`input[data-rot="${u.index}:${a}"]`);
-        if (pel && document.activeElement !== pel) pel.value = m.pos[+a];
-        if (rel && document.activeElement !== rel) rel.value = m.rot[+a];
-      });
     });
+    this._syncXformFields();
     if (this.viewport.transformMode === 'rotate') {
       this._seatAfterRotate(updates.map((u) => u.index));
     }
@@ -1361,13 +1559,7 @@ export class App {
       const ms = m.scale || [1, 1, 1];
       m.scale = [ms[0] * fS[0], ms[1] * fS[1], ms[2] * fS[2]];
     });
-    const host = this.root.querySelector('#build-list');
-    if (!host) return;
-    const set = (q, v) => { const el = host.querySelector(q); if (el && document.activeElement !== el) el.value = v; };
-    sel.forEach((j) => {
-      const m = nodes[j]; if (!m) return;
-      ['0', '1', '2'].forEach((a) => { set(`input[data-pos="${j}:${a}"]`, m.pos[+a]); set(`input[data-rot="${j}:${a}"]`, m.rot[+a]); });
-    });
+    this._syncXformFields();
     if (sel.length > 1) this._syncTransformMeshes(sel, nodes);
     if (this.viewport.transformMode === 'rotate') this._seatAfterRotate(sel);
     this._syncGroupTransformFields();
@@ -1381,13 +1573,185 @@ export class App {
     }
     if (this._transformSet().length > 1) this.recompile();
     else this._recompileMergedHUD();
+    this._updatePartMetrics?.();
     this._pushHistory();
   }
 
   _setXform(mode) {
     if (this.cutPlaneMode) this.viewport.setCutPlaneXform(mode);
     else this.viewport.setTransformMode(mode);
-    this.root.querySelectorAll('[data-xform]').forEach((x) => x.classList.toggle('on', x.dataset.xform === mode));
+    if (mode === 'scale') this._setEditToolTab('size');
+    else if (this._editToolTab === 'size' && mode !== 'scale') this._setEditToolTab('move');
+    this._syncXformFields();
+  }
+
+  // Numeric move / turn / scale fields — sync with gizmo + model.
+  _ensureXformFieldDelegates() {
+    const bindHost = (host) => {
+      if (!host || host.dataset.delegates) return;
+      host.dataset.delegates = '1';
+    const numIn = (el) => {
+      const v = parseFloat(String(el.value).replace(',', '.'));
+      return Number.isFinite(v) ? v : null;
+    };
+    const xfRotPrev = [0, 0, 0];
+    const apply = (el) => {
+      const nodes = this.buildTree.nodes;
+      const idx = this.selectedNode;
+      if (idx < 0 || !nodes[idx]) return;
+      if (el.dataset.xfPos != null) {
+        const a = +el.dataset.xfPos;
+        const v = numIn(el);
+        if (v == null) return;
+        if (this._isUnifiedGroupSelection()) this._moveGroupCentre(a, v);
+        else {
+          nodes[idx].pos[a] = v;
+          this._syncTransformMeshes(this._transformSet(), nodes);
+          this._scheduleRecompile();
+        }
+      } else if (el.dataset.xfRot != null) {
+        const a = +el.dataset.xfRot;
+        const v = numIn(el);
+        if (v == null) return;
+        if (this._isUnifiedGroupSelection()) {
+          this._rotateGroupAboutCentre(a, v - xfRotPrev[a]);
+          xfRotPrev[a] = v;
+          this._syncGroupTransformFields();
+        } else {
+          nodes[idx].rot[a] = v;
+          this._syncTransformMeshes([idx], nodes);
+          this._seatAfterRotate([idx]);
+          this._scheduleRecompile();
+        }
+      }
+      this._syncXformFields();
+    };
+    host.addEventListener('input', (e) => {
+      const el = e.target;
+      if (!(el instanceof HTMLInputElement) || !host.contains(el)) return;
+      apply(el);
+    });
+    host.addEventListener('change', (e) => {
+      const el = e.target;
+      if (!(el instanceof HTMLInputElement) || !host.contains(el)) return;
+      apply(el);
+      this._pushHistory();
+    });
+    host.addEventListener('focusin', (e) => {
+      const el = e.target;
+      if (!(el instanceof HTMLInputElement)) return;
+      if (el.dataset.xfRot != null) xfRotPrev[+el.dataset.xfRot] = parseFloat(el.value) || 0;
+    });
+    };
+    bindHost(this.root.querySelector('#xform-fields-move'));
+  }
+
+  _syncSizeMmFields() {
+    const wrap = this.root.querySelector('#size-mm-fields');
+    if (!wrap) return;
+    const idx = this.selectedNode;
+    const nodes = this.buildTree.nodes;
+    const multiLoose = this.selectedNodes.length > 1 && !this._isUnifiedGroupSelection();
+    const hide = idx < 0 || !nodes[idx] || multiLoose;
+    wrap.classList.toggle('hidden', hide);
+    if (hide) return;
+    const r1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+    let dims = null;
+    if (this._isUnifiedGroupSelection?.()) {
+      const bb = this._selectionBounds(this._transformSet());
+      if (bb) dims = [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]];
+    } else {
+      const sz = this.viewport.shapeLocalSize?.(idx);
+      if (sz) dims = [sz.w, sz.d, sz.h];
+    }
+    ['0', '1', '2'].forEach((a) => {
+      const el = wrap.querySelector(`input[data-size-mm="${a}"]`);
+      const val = dims ? dims[+a] : null;
+      if (el && document.activeElement !== el) el.value = val != null ? r1(val) : '';
+    });
+  }
+
+  _applySizeMm(axis, targetMm) {
+    if (!(targetMm > 0)) return;
+    const idx = this.selectedNode;
+    const nodes = this.buildTree.nodes;
+    const n = nodes[idx];
+    if (!n) return;
+    const sz = this.viewport.shapeLocalSize?.(idx);
+    if (!sz) return;
+    const cur = [sz.w, sz.d, sz.h][axis];
+    if (!(cur > 0)) return;
+
+    const wdh = { box: ['x', 'y', 'z'], roundedBox: ['x', 'y', 'z'], chamferedBox: ['x', 'y', 'z'], wedge: ['w', 'd', 'h'] }[n.kind];
+    if (wdh?.[axis]) {
+      bakeNodeScale(n);
+      const f = n.fields.find((x) => x.key === wdh[axis]);
+      if (f && f.type !== 'text') {
+        f.value = Math.round(targetMm * 10) / 10;
+        resetScaleOnSizeEdit(n);
+        this._scheduleRecompile();
+        return;
+      }
+    }
+    const s = [...(n.scale || [1, 1, 1])];
+    s[axis] = (s[axis] || 1) * (targetMm / cur);
+    n.scale = s;
+    this._syncTransformMeshes([idx], nodes);
+    this._scheduleRecompile();
+  }
+
+  _ensureSizeMmDelegates() {
+    const host = this.root.querySelector('#size-mm-fields');
+    if (!host || host.dataset.delegates) return;
+    host.dataset.delegates = '1';
+    const numIn = (el) => {
+      const v = parseFloat(String(el.value).replace(',', '.'));
+      return Number.isFinite(v) ? v : null;
+    };
+    const apply = (el) => {
+      const v = numIn(el);
+      if (v == null) return;
+      this._applySizeMm(+el.dataset.sizeMm, v);
+      this._syncSizeMmFields();
+    };
+    host.addEventListener('input', (e) => {
+      const el = e.target;
+      if (el instanceof HTMLInputElement && el.dataset.sizeMm != null) apply(el);
+    });
+    host.addEventListener('change', (e) => {
+      const el = e.target;
+      if (el instanceof HTMLInputElement && el.dataset.sizeMm != null) {
+        apply(el);
+        this._pushHistory();
+      }
+    });
+  }
+
+  _syncXformFields() {
+    const moveWrap = this.root.querySelector('#xform-fields-move');
+    const idx = this.selectedNode;
+    const nodes = this.buildTree.nodes;
+    const multiLoose = this.selectedNodes.length > 1 && !this._isUnifiedGroupSelection();
+    const hide = idx < 0 || !nodes[idx] || multiLoose;
+    if (moveWrap) moveWrap.hidden = hide;
+    if (hide) {
+      this._syncSizeMmFields();
+      return;
+    }
+    const n = nodes[idx];
+    const pos = this._isUnifiedGroupSelection()
+      ? this._selectionCentre(this._transformSet())
+      : n.pos;
+    const r1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+    if (moveWrap) {
+      ['0', '1', '2'].forEach((a) => {
+        const pel = moveWrap.querySelector(`input[data-xf-pos="${a}"]`);
+        const rel = moveWrap.querySelector(`input[data-xf-rot="${a}"]`);
+        if (pel && document.activeElement !== pel) pel.value = pos ? r1(pos[+a]) : '';
+        if (rel && document.activeElement !== rel) rel.value = r1(n.rot[+a]);
+      });
+    }
+    this._syncSizeMmFields();
   }
 
   // --- undo / redo (snapshot history) --------------------------------------
@@ -2160,26 +2524,17 @@ export class App {
     this._pushHistory();
   }
 
-  // Show the per-part editor — the Edit tab (2nd column) of the unified panel.
   _openPartModal() {
-    this._setPanelTab('edit');
+    this._inspectorClosed = false;
+    this._syncInspector();
   }
 
-  // Switch the unified panel to a tab. 'edit' slides out the editor as a 2nd
-  // column (the panel widens) while the parts list stays in the main column.
-  _setPanelTab(tab) {
-    this._panelTab = tab;
-    if (tab !== 'settings' && this.mode !== 'build') this._switchMode('build'); // Parts/Shapes/Edit are build concepts
+  // Legacy no-op — tabs removed; inspector opens on selection via _syncInspector.
+  _setPanelTab(_tab) {
+    if (this.mode !== 'build') this._switchMode('build');
     if (this._cardCollapsed) this._setCardCollapsed(false);
-    this.root.querySelectorAll('.ptab').forEach((b) => b.classList.toggle('on', b.dataset.ptab === tab));
-    const mainTab = tab === 'edit' ? 'parts' : tab;
-    this.root.querySelectorAll('.ppane').forEach((p) => p.classList.toggle('hidden', p.dataset.pane !== mainTab));
-    const editCol = this.root.querySelector('#pcol-edit');
-    if (editCol) editCol.classList.toggle('hidden', tab !== 'edit');
-    const card = this.root.querySelector('#part-card');
-    if (card) card.classList.toggle('editing', tab === 'edit');
-    this._syncBuildTools();
-    if (tab === 'edit') this._renderBuildTree();
+    this._inspectorClosed = false;
+    this._syncInspector();
     this._renderAlignBar();
   }
 

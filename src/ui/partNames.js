@@ -9,6 +9,14 @@ export const KIND_LABEL = {
   counterbore: "c'bore",
   countersink: "c'sink",
   nutTrap: 'nut trap',
+  hingePin: 'pin hinge',
+  hingeHalf: 'half hinge',
+  hingeFlex: 'living hinge',
+  lockSnap: 'snap clip',
+  lockHook: 'hook hasp',
+  lockPeg: 'peg post',
+  lockSlide: 'slide tongue',
+  lockKeeper: 'keeper slot',
 };
 
 export const GROUP_MODE_SHORT = { union: '∪', subtract: '∖', intersect: '∩', hull: '⬭' };
@@ -27,12 +35,11 @@ export function partDisplayName(node) {
   return custom || partKindLabel(node);
 }
 
-/** Roster line: "Stand body · sketch" when named, else just the kind. */
+/** Roster line: custom name when set, otherwise the kind. */
 export function partListLabel(node) {
-  const kind = partKindLabel(node);
   const custom = (node?.name || '').trim();
-  if (custom && custom.toLowerCase() !== kind.toLowerCase()) return `${custom} · ${kind}`;
-  return kind;
+  if (custom) return custom;
+  return partKindLabel(node);
 }
 
 export function groupBadgeText(node, memberCount) {

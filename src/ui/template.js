@@ -108,11 +108,8 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
           </div>
         </nav>
 
-        <!-- one draggable/dockable card hosts BOTH authoring surfaces: the model
-             -source editor (code mode) and the parts inspector (build mode). The
-             active mode's content shows; the other is hidden (see _syncCardDomain
-             + .part-card.dom-code in styles.css). Result hides the whole card. -->
-        <div id="part-card" class="part-card dock-right hidden" role="region" aria-label="Editor and parts">
+        <!-- Code mode: source editor card. Build mode: parts list + inspector panels. -->
+        <div id="part-card" class="part-card dock-right hidden" role="region" aria-label="Model source editor">
           <div id="card-resize" class="card-resize" title="Drag to resize · double-click for full width" aria-hidden="true"></div>
           <div class="card-head" id="card-head">
             <span class="card-grip" title="Drag to move · snaps to either edge">⠿</span>
@@ -126,9 +123,6 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
               <button id="card-min" class="card-ic" title="Collapse">«</button>
             </span>
           </div>
-          <div class="pcols" id="pcols">
-            <!-- code mode: model-source editor (.hidden in build; the build columns
-                 below are hidden in code via .part-card.dom-code) -->
             <section id="pane-code" class="pane pane-code">
               <div class="code-workspace" id="code-workspace">
                 <div class="code-main">
@@ -163,44 +157,71 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                 </aside>
               </div>
             </section>
-            <div class="pcol-main">
-              <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
-              <div class="ppane" data-pane="parts">
-                <div class="parts-head">
-                  <p class="hint" id="parts-hint">Tap a part to edit · tap ⊹ multi to pick several</p>
-                  <div class="parts-head-acts">
-                    <button class="mini-btn js-multi" id="multi-head" title="Multi-select: tap this, then tap parts in the scene to add them (tap again to finish)" hidden>⊹ multi</button>
-                    <button class="mini-btn" id="clear-canvas" title="Remove all parts from the plate" hidden>Clear</button>
-                  </div>
-                </div>
-                <div id="build-list" class="build-list"></div>
-              </div>
+        </div>
+
+        <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
+
+        <!-- Build mode: parts roster (always visible when editing) -->
+        <aside id="parts-sidebar" class="build-panel parts-sidebar dock-right hidden" aria-label="Parts list">
+          <div id="parts-resize" class="panel-resize" title="Drag to resize parts list" aria-hidden="true"></div>
+          <header class="bp-head" id="parts-sidebar-head">
+            <span class="bp-grip" title="Drag · snaps to edge">⠿</span>
+            <div class="card-mode-seg card-mode-seg-sm" role="group" aria-label="Code or Build">
+              <button type="button" class="card-mode-opt" data-mode="code" title="Write source code">Code</button>
+              <button type="button" class="card-mode-opt" data-mode="build" title="Edit parts on the plate">Build</button>
             </div>
-            <div class="pcol-edit hidden" id="pcol-edit">
-              <div class="pedit-head">
-                <span class="pedit-label">Size</span>
-                <span id="part-modal-metrics" class="pm-metrics">—</span>
-              </div>
+            <span class="bp-title">Parts</span>
+            <span id="parts-count" class="bp-count">0</span>
+            <span class="bp-head-acts">
+              <button class="mini-btn js-multi" id="multi-head" title="Multi-select" hidden>⊹</button>
+              <button class="mini-btn" id="clear-canvas" title="Clear plate" hidden>Clear</button>
+              <button id="parts-snap" class="card-ic" title="Dock left / right">▣</button>
+              <button id="parts-min" class="card-ic" title="Preview result">»</button>
+            </span>
+          </header>
+          <div class="bp-body">
+            <p class="hint bp-hint" id="parts-hint">Tap a part to inspect it</p>
+            <div id="build-list" class="build-list"></div>
+          </div>
+        </aside>
+
+        <button type="button" id="parts-peek" class="parts-peek hidden" title="Show parts list">Parts ›</button>
+
+        <!-- Build mode: inspector (opens when a part is selected) -->
+        <aside id="inspector-panel" class="build-panel inspector-panel dock-right hidden" aria-label="Part inspector">
+          <div id="inspector-resize" class="panel-resize" title="Drag to resize inspector" aria-hidden="true"></div>
+          <header class="ip-head">
+            <button type="button" class="ip-parts-btn" id="inspector-parts-toggle" title="Show parts list">☰ Parts</button>
+            <span class="ip-title">Inspector</span>
+            <button type="button" class="ip-close" id="inspector-close" title="Close inspector (shows parts list)">✕</button>
+          </header>
+          <div class="ip-body">
+            <div id="inspector-empty" class="ip-empty">
+              <p>Select a part in the list or on the plate.</p>
+            </div>
+            <div id="inspector-content" class="ip-content hidden">
               <div id="part-modal-fields"></div>
-              <div class="print-prep-strip" id="print-prep-strip">
-                <span class="print-prep-title">Print prep</span>
-                <button type="button" data-op-act="drop" class="prep-chip" title="Seat selection on the build plate">⤓ on bed</button>
-                <button type="button" data-op-act="center" class="prep-chip" title="Centre selection on plate origin (0,0)">⊹ centre</button>
-                <button type="button" data-print-ready class="prep-chip prep-go" title="Centre, drop, and check fit">✓ print ready</button>
-                <button type="button" data-prep-group class="prep-chip" title="Group selected parts">▣ group</button>
-              </div>
-              <div class="edit-tools" id="edit-tools">
-                <div class="edit-tool-tabs" role="tablist" aria-label="Part tools">
-                  <button type="button" class="edit-tool-tab on" data-ttab="move" role="tab" aria-selected="true">Move</button>
-                  <button type="button" class="edit-tool-tab" data-ttab="place" role="tab" aria-selected="false">Place</button>
-                  <button type="button" class="edit-tool-tab" data-ttab="multi" role="tab" aria-selected="false" hidden>Multi</button>
-                </div>
-                <div class="edit-tool-pane on" data-ttab="move" role="tabpanel">
-                  <div class="xform" id="xform">
-                    <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
-                    <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
-                    <button data-xform="scale" title="Scale (R)">⤢ size</button>
-                    <button id="multi-toggle" class="js-multi" title="Multi-select — or long-press a part in the scene. Tap parts to add; tap empty to finish.">⊹ multi</button>
+
+              <details class="ip-section" id="sec-transform" open>
+                <summary class="ip-sum"><span class="ip-sum-t">Position &amp; rotation</span><span class="ip-chev" aria-hidden="true">▾</span></summary>
+                <div class="ip-section-in">
+                  <div class="xform-fields" id="xform-fields-move">
+                    <div class="xf-block">
+                      <span class="xf-title">Position</span>
+                      <div class="xf-vals">
+                        <label data-unit="mm">X<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-xf-pos="0"></label>
+                        <label data-unit="mm">Y<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-xf-pos="1"></label>
+                        <label data-unit="mm">Z<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-xf-pos="2"></label>
+                      </div>
+                    </div>
+                    <div class="xf-block">
+                      <span class="xf-title">Rotation</span>
+                      <div class="xf-vals">
+                        <label data-unit="°">Rx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-xf-rot="0"></label>
+                        <label data-unit="°">Ry<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-xf-rot="1"></label>
+                        <label data-unit="°">Rz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-xf-rot="2"></label>
+                      </div>
+                    </div>
                   </div>
                   <div class="xform xform-sub" id="wpbar">
                     <span class="xform-label">workplane</span>
@@ -208,19 +229,29 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                     <button data-wp="ground" title="Reset the workplane to the ground">⊞ ground</button>
                   </div>
                 </div>
-                <div class="edit-tool-pane" data-ttab="place" role="tabpanel">
-                  <p class="edit-tool-hint">Seat, centre, mirror, or cut the selected part (or group) on the plate.</p>
-                  <div class="edit-tool-block">
-                    <span class="edit-tool-block-title">Laser cut</span>
-                    <p class="edit-tool-hint cut-plane-hint" id="cut-plane-hint" hidden>Move/turn the red plane with ↔ move / ⟳ turn, then <strong>cut here</strong>. Point: <span id="cut-plane-readout">—</span></p>
-                    <p class="edit-tool-hint seam-hint">Seam gap (2 parts): <span id="seam-readout">—</span> · a dark line is often just edge outlines, not a gap</p>
-                    <div class="tool-chip-grid" id="cutbar">
-                      <button data-cut-plane="toggle" title="Show a movable cut plane across the plate">⚡ laser</button>
-                      <button data-cut-plane="apply" title="Split the part along the plane">✂ cut here</button>
-                      <button data-cut-plane="reset" title="Level the plane through the selection centre">⟲ level plane</button>
-                      <button data-cut-plane="check" title="Measure closest distance between two selected parts">📏 check seam</button>
+              </details>
+
+              <details class="ip-section" id="sec-size" open>
+                <summary class="ip-sum"><span class="ip-sum-t">Size</span><span class="ip-chev" aria-hidden="true">▾</span></summary>
+                <div class="ip-section-in">
+                  <div id="size-mm-fields" class="size-mm-fields">
+                    <div class="xf-block">
+                      <span class="xf-title">Size</span>
+                      <div class="xf-vals size-mm-vals">
+                        <label data-unit="mm">W<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-size-mm="0" title="Width in mm"></label>
+                        <label data-unit="mm">D<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-size-mm="1" title="Depth in mm"></label>
+                        <label data-unit="mm">H<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-size-mm="2" title="Height in mm"></label>
+                      </div>
                     </div>
                   </div>
+                  <div id="part-size-fields"></div>
+                </div>
+              </details>
+
+              <details class="ip-section" id="sec-arrange">
+                <summary class="ip-sum"><span class="ip-sum-t">Arrange</span><span class="ip-chev" aria-hidden="true">▾</span></summary>
+                <div class="ip-section-in">
+                  <p class="edit-tool-hint">Seat, centre, mirror, or cut the selected part (or group) on the plate.</p>
                   <div class="tool-chip-grid" id="opsbar">
                     <button data-op-act="drop" title="Drop onto the plate">⤓ on base</button>
                     <button data-op-act="center" title="Center on the plate">⊹ centre</button>
@@ -234,8 +265,23 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                     <button data-cut-half="x" title="Quick cut: left / right at centre">✂ left/right</button>
                     <button data-cut-half="y" title="Quick cut: front / back at centre">✂ front/back</button>
                   </div>
+                  <div class="edit-tool-block">
+                    <span class="edit-tool-block-title">Laser cut</span>
+                    <p class="edit-tool-hint cut-plane-hint" id="cut-plane-hint" hidden>Move/turn the red plane with ↔ move / ⟳ turn, then <strong>cut here</strong>. Point: <span id="cut-plane-readout">—</span></p>
+                    <p class="edit-tool-hint seam-hint">Seam gap (2 parts): <span id="seam-readout">—</span> · a dark line is often just edge outlines, not a gap</p>
+                    <div class="tool-chip-grid" id="cutbar">
+                      <button data-cut-plane="toggle" title="Show a movable cut plane across the plate">⚡ laser</button>
+                      <button data-cut-plane="apply" title="Split the part along the plane">✂ cut here</button>
+                      <button data-cut-plane="reset" title="Level the plane through the selection centre">⟲ level plane</button>
+                      <button data-cut-plane="check" title="Measure closest distance between two selected parts">📏 check seam</button>
+                    </div>
+                  </div>
                 </div>
-                <div class="edit-tool-pane" data-ttab="multi" role="tabpanel">
+              </details>
+
+              <details class="ip-section" id="sec-combine" hidden>
+                <summary class="ip-sum"><span class="ip-sum-t">Combine</span><span class="ip-chev" aria-hidden="true">▾</span></summary>
+                <div class="ip-section-in">
                   <p class="edit-tool-hint">Pick 2+ parts. <strong>Group</strong> links them for move/rotate. <strong>Combine</strong> sets how their solids merge.</p>
                   <div class="edit-tool-block">
                     <span class="edit-tool-block-title">Align</span>
@@ -276,10 +322,18 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                     </div>
                   </div>
                 </div>
+              </details>
+
+              <div class="print-prep-strip" id="print-prep-strip">
+                <span class="print-prep-title">Print prep</span>
+                <button type="button" data-op-act="drop" class="prep-chip" title="Seat selection on the build plate">⤓ on bed</button>
+                <button type="button" data-op-act="center" class="prep-chip" title="Centre selection on plate origin (0,0)">⊹ centre</button>
+                <button type="button" data-print-ready class="prep-chip prep-go" title="Centre, drop, and check fit">✓ print ready</button>
+                <button type="button" data-prep-group class="prep-chip" title="Group selected parts">▣ group</button>
               </div>
             </div>
           </div>
-        </div>
+        </aside>
 
         <div id="layer-bar" class="layer-bar hidden">
           <span id="layer-label" class="layer-label">layer</span>

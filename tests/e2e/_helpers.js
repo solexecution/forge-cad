@@ -125,9 +125,12 @@ export async function selectNode(page, i, additive = false) {
     .catch(() => {});
 }
 
+// The inspector now has ONE set of transform fields for the selected part
+// (data-xf-pos / data-xf-rot — no per-part index), inside the open "Position &
+// rotation" section. setPos/setRot assume node i is the current selection.
 /** Set a position axis (0=x,1=y,2=z) via the numeric editor field and wait for it to apply. */
 export async function setPos(page, i, axis, value) {
-  const sel = `[data-pos="${i}:${axis}"]`;
+  const sel = `[data-xf-pos="${axis}"]`;
   await expect(page.locator(sel)).toBeVisible();
   const loc = page.locator(sel);
   await loc.fill(String(value));
@@ -140,7 +143,7 @@ export async function setPos(page, i, axis, value) {
 
 /** Set a rotation axis (0=rx,1=ry,2=rz, degrees) via the numeric editor field. */
 export async function setRot(page, i, axis, value) {
-  const sel = `[data-rot="${i}:${axis}"]`;
+  const sel = `[data-xf-rot="${axis}"]`;
   await expect(page.locator(sel)).toBeVisible();
   const loc = page.locator(sel);
   await loc.fill(String(value));
@@ -149,6 +152,15 @@ export async function setRot(page, i, axis, value) {
     ({ i, axis, value }) => window.__forgeApp.buildTree.nodes[i].rot[axis] === value,
     { i, axis, value },
   );
+}
+
+/** Set a size axis (0=W,1=D,2=H, mm) via the Size section field. Assumes node i is selected. */
+export async function setSize(page, i, axis, value) {
+  const sel = `[data-size-mm="${axis}"]`;
+  await expect(page.locator(sel)).toBeVisible();
+  const loc = page.locator(sel);
+  await loc.fill(String(value));
+  await loc.blur();
 }
 
 /** Start collecting console + page errors. Returns the mutable array. */

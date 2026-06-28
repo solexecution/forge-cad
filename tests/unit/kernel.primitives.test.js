@@ -22,6 +22,14 @@ import {
   insertHole,
   nutTrap,
   keyhole,
+  hingePin,
+  hingeHalf,
+  hingeFlex,
+  lockSnap,
+  lockHook,
+  lockPeg,
+  lockSlide,
+  lockKeeper,
   extrude,
   revolve,
   inspect,
@@ -299,6 +307,27 @@ describe('kernel primitives', () => {
     expect(info.bbox.size[2]).toBeGreaterThan(0);
     m.delete();
   });
+
+  for (const [name, fn, args] of [
+    ['hingePin', hingePin, []],
+    ['hingeHalf', hingeHalf, []],
+    ['hingeFlex', hingeFlex, []],
+    ['lockSnap', lockSnap, []],
+    ['lockHook', lockHook, []],
+    ['lockPeg', lockPeg, []],
+    ['lockSlide', lockSlide, []],
+    ['lockKeeper', lockKeeper, []],
+  ]) {
+    it(`${name} returns a valid on-plate manifold`, () => {
+      const m = fn(...args);
+      const info = inspect(m);
+      expect(info.volume).toBeGreaterThan(0);
+      expect(info.triangles).toBeGreaterThan(0);
+      expect(info.bbox.min[2]).toBeCloseTo(0, 1);
+      expect(info.bbox.size[2]).toBeGreaterThan(0);
+      m.delete();
+    });
+  }
 
   // --- 2D -> 3D --------------------------------------------------------------
 

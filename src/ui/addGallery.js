@@ -18,6 +18,8 @@ const ADD_GALLERY = [
   ['rounded', 'Rounded & chamfered', _prims('rounded')],
   ['text', 'Text', [..._prims('text'), { id: 'engrave-text', art: 'engrave', label: 'on a face…' }]],
   ['fasteners', 'Fasteners', _prims('fasteners')],
+  ['hinges', 'Hinges · print-ready', _prims('hinges')],
+  ['locks', 'Locks · latch clips', _prims('locks')],
   ['ready', 'Ready-made · adjustable', [
     _t('soap dish', 'soapDish'), _t('pen cup', 'penCup'), _t('coaster', 'coaster'),
     _t('stacking bin', 'stackingBin'), _t('bolt & nut', 'bolt_nut'), _t('washer', 'washer'),

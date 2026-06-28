@@ -188,7 +188,9 @@ export class Toolbar {
     let sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
     const onMove = (e) => {
       moved = true;
-      el.classList.remove('dock-left', 'dock-right'); el.classList.add('float');
+      // drop 'dodge' too — its .stage.cardleft/right rules pin left/right with
+      // !important, which would otherwise override the inline drag position.
+      el.classList.remove('dock-left', 'dock-right', 'dodge'); el.classList.add('float');
       const r = el.getBoundingClientRect();
       const x = Math.max(6, Math.min(ox + e.clientX - sx, window.innerWidth - r.width - 6));
       const y = Math.max(52, Math.min(oy + e.clientY - sy, window.innerHeight - r.height - 6));
@@ -304,8 +306,16 @@ export class Toolbar {
     const el = this._el;
     if (!el || !panelVisible || this.dock !== 'float') return;
     const card = this.root.querySelector('#part-card');
-    if (!card || card.classList.contains('collapsed')) return;
-    const panelW = card.getBoundingClientRect().width || 360;
+    const parts = this.root.querySelector('#parts-sidebar');
+    const insp = this.root.querySelector('#inspector-panel');
+    const active = (card && !card.classList.contains('hidden') && !card.classList.contains('collapsed'))
+      ? card
+      : (parts && !parts.classList.contains('hidden') && !parts.classList.contains('collapsed') ? parts : null);
+    if (!active) return;
+    let panelW = active.getBoundingClientRect().width || 360;
+    if (active === parts && insp && !insp.classList.contains('hidden') && !insp.classList.contains('collapsed')) {
+      panelW += insp.getBoundingClientRect().width || 340;
+    }
     const r = el.getBoundingClientRect();
     if (cardDock === 'left' && r.left < panelW - 4) {
       this.x = Math.round(panelW + 12);

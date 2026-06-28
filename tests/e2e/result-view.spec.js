@@ -52,6 +52,15 @@ test.describe('result view — pick to edit', () => {
   test('clicking a part in result preview selects it and opens edit', async ({ page }) => {
     await gotoApp(page);
     await ensureBuildMode(page);
+    // Start from an empty plate so the centred result pick is unambiguous — the
+    // box is then the only solid under the centre pixel (the starter scene's other
+    // parts would otherwise sit in front of the raycast).
+    await page.evaluate(() => {
+      const a = window.__forgeApp;
+      a.buildTree.nodes = [];
+      a.selectedNodes = [];
+      a.selectedNode = -1;
+    });
     const i = await addShape(page, 'box');
     await page.waitForFunction(() => !!window.__forgeApp.currentModel);
     await page.evaluate(() => window.__forgeApp._setViewMode('result'));

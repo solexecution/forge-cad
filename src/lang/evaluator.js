@@ -188,6 +188,22 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.nutTrap(arg(0, 'af', 5.5), arg(1, 'nutThick', 2.6), arg(2, 'boltD', 3.4), arg(3, 'shaftDepth', 14))));
       case 'keyhole':
         return mark(track(K.keyhole(arg(0, 'headD', 8), arg(1, 'slotW', 4), arg(2, 'length', 12), arg(3, 'depth', 6))));
+      case 'hingePin':
+        return mark(track(K.hingePin(arg(0, 'leafL', 24), arg(1, 'leafW', 16), arg(2, 'leafT', 3), arg(3, 'knuckleR', 2.5), arg(4, 'pinR', 1.2), arg(5, 'gap', 0.35))));
+      case 'hingeHalf':
+        return mark(track(K.hingeHalf(arg(0, 'leafL', 24), arg(1, 'leafW', 16), arg(2, 'leafT', 3), arg(3, 'knuckleR', 2.5), arg(4, 'pinR', 1.2), arg(5, 'gap', 0.35))));
+      case 'hingeFlex':
+        return mark(track(K.hingeFlex(arg(0, 'tabL', 20), arg(1, 'tabW', 14), arg(2, 'tabT', 3), arg(3, 'bridgeW', 1.2), arg(4, 'bridgeT', 0.6))));
+      case 'lockSnap':
+        return mark(track(K.lockSnap(arg(0, 'baseL', 12), arg(1, 'baseW', 14), arg(2, 'baseT', 3), arg(3, 'armL', 18), arg(4, 'armT', 1.2), arg(5, 'hookH', 4), arg(6, 'gap', 0.35))));
+      case 'lockHook':
+        return mark(track(K.lockHook(arg(0, 'baseL', 10), arg(1, 'baseW', 12), arg(2, 'baseT', 3), arg(3, 'hookL', 14), arg(4, 'hookW', 6), arg(5, 'gap', 0.5))));
+      case 'lockPeg':
+        return mark(track(K.lockPeg(arg(0, 'baseL', 10), arg(1, 'baseW', 10), arg(2, 'baseT', 3), arg(3, 'pegD', 5), arg(4, 'pegH', 6), arg(5, 'gap', 0.5))));
+      case 'lockSlide':
+        return mark(track(K.lockSlide(arg(0, 'baseL', 10), arg(1, 'baseW', 12), arg(2, 'baseT', 3), arg(3, 'tongueL', 16), arg(4, 'tongueW', 8), arg(5, 'tongueT', 2.4))));
+      case 'lockKeeper':
+        return mark(track(K.lockKeeper(arg(0, 'baseL', 12), arg(1, 'baseW', 14), arg(2, 'baseT', 3), arg(3, 'slotL', 18), arg(4, 'slotW', 9), arg(5, 'slotT', 2.8), arg(6, 'gap', 0.4))));
       case 'roundedCylinder':
         return mark(track(K.roundedCylinder(arg(0, 'h'), arg(1, 'r'), arg(2, 'fillet', 2))));
       case 'chamferedBox':

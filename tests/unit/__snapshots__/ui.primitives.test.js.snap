@@ -297,6 +297,127 @@ exports[`primitive catalog (characterization) > gear → stable source, fields, 
 }
 `;
 
+exports[`primitive catalog (characterization) > hingeFlex → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "tabL",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "tabW",
+      "type": "number",
+      "value": 14,
+    },
+    {
+      "key": "tabT",
+      "type": "number",
+      "value": 3,
+    },
+    {
+      "key": "bridgeW",
+      "type": "number",
+      "value": 1.2,
+    },
+    {
+      "key": "bridgeT",
+      "type": "number",
+      "value": 0.6,
+    },
+  ],
+  "source": "union() {
+    hingeFlex(20, 14, 3, 1.2, 0.6);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > hingeHalf → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "leafL",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "leafW",
+      "type": "number",
+      "value": 16,
+    },
+    {
+      "key": "leafT",
+      "type": "number",
+      "value": 3,
+    },
+    {
+      "key": "knuckleR",
+      "type": "number",
+      "value": 2.5,
+    },
+    {
+      "key": "pinR",
+      "type": "number",
+      "value": 1.2,
+    },
+    {
+      "key": "gap",
+      "type": "number",
+      "value": 0.35,
+    },
+  ],
+  "source": "union() {
+    hingeHalf(24, 16, 3, 2.5, 1.2, 0.35);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > hingePin → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "leafL",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "leafW",
+      "type": "number",
+      "value": 16,
+    },
+    {
+      "key": "leafT",
+      "type": "number",
+      "value": 3,
+    },
+    {
+      "key": "knuckleR",
+      "type": "number",
+      "value": 2.5,
+    },
+    {
+      "key": "pinR",
+      "type": "number",
+      "value": 1.2,
+    },
+    {
+      "key": "gap",
+      "type": "number",
+      "value": 0.35,
+    },
+  ],
+  "source": "union() {
+    hingePin(24, 16, 3, 2.5, 1.2, 0.35);
+}
+",
+}
+`;
+
 exports[`primitive catalog (characterization) > imported → stable source, fields, and base height 1`] = `
 {
   "baseZ": 0,
@@ -357,6 +478,226 @@ exports[`primitive catalog (characterization) > keyhole → stable source, field
   ],
   "source": "union() {
     keyhole(8, 4, 12, 6);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > lockHook → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "baseL",
+      "type": "number",
+      "value": 10,
+    },
+    {
+      "key": "baseW",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "baseT",
+      "type": "number",
+      "value": 3,
+    },
+    {
+      "key": "hookL",
+      "type": "number",
+      "value": 14,
+    },
+    {
+      "key": "hookW",
+      "type": "number",
+      "value": 6,
+    },
+    {
+      "key": "gap",
+      "type": "number",
+      "value": 0.5,
+    },
+  ],
+  "source": "union() {
+    lockHook(10, 12, 3, 14, 6, 0.5);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > lockKeeper → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "baseL",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "baseW",
+      "type": "number",
+      "value": 14,
+    },
+    {
+      "key": "baseT",
+      "type": "number",
+      "value": 3,
+    },
+    {
+      "key": "slotL",
+      "type": "number",
+      "value": 18,
+    },
+    {
+      "key": "slotW",
+      "type": "number",
+      "value": 9,
+    },
+    {
+      "key": "slotT",
+      "type": "number",
+      "value": 2.8,
+    },
+    {
+      "key": "gap",
+      "type": "number",
+      "value": 0.4,
+    },
+  ],
+  "source": "union() {
+    lockKeeper(12, 14, 3, 18, 9, 2.8, 0.4);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > lockPeg → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "baseL",
+      "type": "number",
+      "value": 10,
+    },
+    {
+      "key": "baseW",
+      "type": "number",
+      "value": 10,
+    },
+    {
+      "key": "baseT",
+      "type": "number",
+      "value": 3,
+    },
+    {
+      "key": "pegD",
+      "type": "number",
+      "value": 5,
+    },
+    {
+      "key": "pegH",
+      "type": "number",
+      "value": 6,
+    },
+    {
+      "key": "gap",
+      "type": "number",
+      "value": 0.5,
+    },
+  ],
+  "source": "union() {
+    lockPeg(10, 10, 3, 5, 6, 0.5);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > lockSlide → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "baseL",
+      "type": "number",
+      "value": 10,
+    },
+    {
+      "key": "baseW",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "baseT",
+      "type": "number",
+      "value": 3,
+    },
+    {
+      "key": "tongueL",
+      "type": "number",
+      "value": 16,
+    },
+    {
+      "key": "tongueW",
+      "type": "number",
+      "value": 8,
+    },
+    {
+      "key": "tongueT",
+      "type": "number",
+      "value": 2.4,
+    },
+  ],
+  "source": "union() {
+    lockSlide(10, 12, 3, 16, 8, 2.4);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > lockSnap → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "baseL",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "baseW",
+      "type": "number",
+      "value": 14,
+    },
+    {
+      "key": "baseT",
+      "type": "number",
+      "value": 3,
+    },
+    {
+      "key": "armL",
+      "type": "number",
+      "value": 18,
+    },
+    {
+      "key": "armT",
+      "type": "number",
+      "value": 1.2,
+    },
+    {
+      "key": "hookH",
+      "type": "number",
+      "value": 4,
+    },
+    {
+      "key": "gap",
+      "type": "number",
+      "value": 0.35,
+    },
+  ],
+  "source": "union() {
+    lockSnap(12, 14, 3, 18, 1.2, 4, 0.35);
 }
 ",
 }

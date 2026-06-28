@@ -2,7 +2,7 @@
 // with the SAME kernel call (and args) the source path emits (see primitives.js),
 // so the fast preview can't drift from the compiled result. Pulled out of app.js
 // to keep the kernel-primitive surface in one focused place.
-import { box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, nutTrap, keyhole, text, thread, bolt, nut, extrude, revolve, imported } from '../kernel/manifold.js';
+import { box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, nutTrap, keyhole, hingePin, hingeHalf, hingeFlex, lockSnap, lockHook, lockPeg, lockSlide, lockKeeper, text, thread, bolt, nut, extrude, revolve, imported } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { effField, shapeCall } from './buildtree.js';
@@ -14,7 +14,8 @@ import { PRIMITIVES } from './primitives.js';
 const KERNEL = {
   box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star,
   roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear,
-  counterbore, countersink, insertHole, nutTrap, keyhole, text, bolt, nut,
+  counterbore, countersink, insertHole, nutTrap, keyhole, hingePin, hingeHalf, hingeFlex,
+  lockSnap, lockHook, lockPeg, lockSlide, lockKeeper, text, bolt, nut,
 };
 
 // Generic kinds call KERNEL[kind] with the registry's args — the SAME args the

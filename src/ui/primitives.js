@@ -28,6 +28,15 @@ export const FIELD_LABELS = {
   headAF: 'head AF', af: 'across flats', pitch: 'pitch',
   thickness: 'thickness', str: 'text', size: 'font size', height: 'extrude h',
   degrees: 'degrees',
+  leafL: 'leaf length', leafW: 'leaf width', leafT: 'leaf thick',
+  knuckleR: 'knuckle Ø', pinR: 'pin Ø', gap: 'clearance',
+  tabL: 'tab length', tabW: 'tab width', tabT: 'tab thick',
+  bridgeW: 'bridge width', bridgeT: 'bridge thick',
+  baseL: 'base length', baseW: 'base width', baseT: 'base thick',
+  armL: 'arm length', armT: 'arm thick', hookH: 'hook height', hookL: 'hook length',
+  hookW: 'hook width', pegD: 'peg Ø', pegH: 'peg height',
+  tongueL: 'tongue length', tongueW: 'tongue width', tongueT: 'tongue thick',
+  slotL: 'slot length', slotW: 'slot width', slotT: 'slot height',
 };
 
 // Per row:
@@ -71,6 +80,16 @@ export const PRIMITIVES = {
   insertHole:  { fields: [['insertD', 4], ['depth', 6]], args: ['insertD', 'depth'], cat: 'fasteners', label: 'insert', title: 'Heat-set insert pocket' },
   nutTrap:     { fields: [['af', 5.5], ['nutThick', 2.6], ['boltD', 3.4], ['shaftDepth', 14]], args: ['af', 'nutThick', 'boltD', 'shaftDepth'], cat: 'fasteners', label: 'nut trap', title: 'Captive nut trap (hex pocket + bolt shaft)' },
   keyhole:     { fields: [['headD', 8], ['slotW', 4], ['length', 12], ['depth', 6]], args: ['headD', 'slotW', 'length', 'depth'], cat: 'fasteners', label: 'keyhole', title: 'Keyhole slot — hang the print on a screw' },
+
+  hingePin:  { fields: [['leafL', 24], ['leafW', 16], ['leafT', 3], ['knuckleR', 2.5], ['pinR', 1.2], ['gap', 0.35]], args: ['leafL', 'leafW', 'leafT', 'knuckleR', 'pinR', 'gap'], cat: 'hinges', label: 'pin hinge', title: 'Print-in-place pin hinge — two leaves, flex to free' },
+  hingeHalf: { fields: [['leafL', 24], ['leafW', 16], ['leafT', 3], ['knuckleR', 2.5], ['pinR', 1.2], ['gap', 0.35]], args: ['leafL', 'leafW', 'leafT', 'knuckleR', 'pinR', 'gap'], cat: 'hinges', label: 'half hinge', title: 'Knuckle leaf half — add two + filament pin' },
+  hingeFlex: { fields: [['tabL', 20], ['tabW', 14], ['tabT', 3], ['bridgeW', 1.2], ['bridgeT', 0.6]], args: ['tabL', 'tabW', 'tabT', 'bridgeW', 'bridgeT'], cat: 'hinges', label: 'living hinge', title: 'Living hinge — thin flex bridge between tabs' },
+
+  lockSnap:    { fields: [['baseL', 12], ['baseW', 14], ['baseT', 3], ['armL', 18], ['armT', 1.2], ['hookH', 4], ['gap', 0.35]], args: ['baseL', 'baseW', 'baseT', 'armL', 'armT', 'hookH', 'gap'], cat: 'locks', label: 'snap clip', title: 'Flex snap clip — catches a ledge on the mating leaf' },
+  lockHook:    { fields: [['baseL', 10], ['baseW', 12], ['baseT', 3], ['hookL', 14], ['hookW', 6], ['gap', 0.5]], args: ['baseL', 'baseW', 'baseT', 'hookL', 'hookW', 'gap'], cat: 'locks', label: 'hook hasp', title: 'Rigid hook — pair with peg post on the other leaf' },
+  lockPeg:     { fields: [['baseL', 10], ['baseW', 10], ['baseT', 3], ['pegD', 5], ['pegH', 6], ['gap', 0.5]], args: ['baseL', 'baseW', 'baseT', 'pegD', 'pegH', 'gap'], cat: 'locks', label: 'peg post', title: 'Peg mate for hook hasp' },
+  lockSlide:   { fields: [['baseL', 10], ['baseW', 12], ['baseT', 3], ['tongueL', 16], ['tongueW', 8], ['tongueT', 2.4]], args: ['baseL', 'baseW', 'baseT', 'tongueL', 'tongueW', 'tongueT'], cat: 'locks', label: 'slide tongue', title: 'Slide-in tongue — push under keeper slot' },
+  lockKeeper:  { fields: [['baseL', 12], ['baseW', 14], ['baseT', 3], ['slotL', 18], ['slotW', 9], ['slotT', 2.8], ['gap', 0.4]], args: ['baseL', 'baseW', 'baseT', 'slotL', 'slotW', 'slotT', 'gap'], cat: 'locks', label: 'keeper slot', title: 'Groove slot — mate for slide tongue' },
 
   // Built only through the draw / import flows — no gallery tile, not in the kind
   // picker. Their source/mesh come from node.points / node.meshId, not fields.

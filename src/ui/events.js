@@ -175,63 +175,74 @@ class EventBindings {
     this.root.querySelectorAll('[data-xform]').forEach((b) =>
       b.addEventListener('click', () => this._setXform(b.dataset.xform)));
 
-    // floating part card: drag the header to move; it snaps to either edge or
-    // floats. Position persists in localStorage (randr.cardDock).
+    // Floating panels: code card + build parts sidebar share dock edge persistence.
     const card = this.root.querySelector('#part-card');
+    const parts = this.root.querySelector('#parts-sidebar');
     const cardHead = this.root.querySelector('#card-head');
-    if (card && cardHead) {
-      const applyDock = (mode) => {
-        const side = mode === 'right' ? 'right' : 'left';
-        card.classList.remove('dock-left', 'dock-right', 'float');
-        card.classList.add(side === 'right' ? 'dock-right' : 'dock-left');
-        card.style.left = card.style.top = card.style.right = card.style.bottom = '';
-        this._cardDock = side;
-        this._applyCardLayout();
-        this._saveCardDock();
-      };
-      // the parts list is a docked sidebar — left by default; drag the header (or
-      // the ▣ button) to snap it to the other edge. Older 'float' state → left.
-      let savedDock = null;
-      try { savedDock = JSON.parse(localStorage.getItem('randr.cardDock')); } catch { /* ignore */ }
-      applyDock(savedDock?.mode === 'left' ? 'left' : 'right'); // editing docks right by default
-      this._setCardCollapsed(!!savedDock?.collapsed);
+    const partsHead = this.root.querySelector('#parts-sidebar-head');
+    const applyCodeDock = (mode) => {
+      const side = mode === 'right' ? 'right' : 'left';
+      if (!card) return;
+      card.classList.remove('dock-left', 'dock-right', 'float');
+      card.classList.add(side === 'right' ? 'dock-right' : 'dock-left');
+      card.style.left = card.style.top = card.style.right = card.style.bottom = '';
+      this._cardDock = side;
+      this._applyCardLayout();
+      this._saveCardDock();
+    };
+    let savedDock = null;
+    try { savedDock = JSON.parse(localStorage.getItem('randr.cardDock')); } catch { /* ignore */ }
+    applyCodeDock(savedDock?.mode === 'left' ? 'left' : 'right');
+    this._syncBuildPanelDock(savedDock?.mode === 'left' ? 'left' : 'right');
+    this._setCardCollapsed(!!savedDock?.collapsed);
+    this._initBuildPanelResize?.();
 
+    const wirePanelDrag = (panel, head, onSnap) => {
+      if (!panel || !head) return;
       let sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
       const onMove = (e) => {
         moved = true;
-        card.classList.remove('dock-left', 'dock-right'); card.classList.add('float');
-        const r = card.getBoundingClientRect();
+        panel.classList.remove('dock-left', 'dock-right');
+        panel.classList.add('float');
+        const r = panel.getBoundingClientRect();
         const x = Math.max(6, Math.min(ox + e.clientX - sx, window.innerWidth - r.width - 6));
         const y = Math.max(50, Math.min(oy + e.clientY - sy, window.innerHeight - 44));
-        card.style.left = `${x}px`; card.style.top = `${y}px`; card.style.right = 'auto'; card.style.bottom = 'auto';
+        panel.style.left = `${x}px`; panel.style.top = `${y}px`; panel.style.right = 'auto'; panel.style.bottom = 'auto';
       };
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         if (!moved) return;
-        const r = card.getBoundingClientRect();
-        applyDock(r.left + r.width / 2 < window.innerWidth / 2 ? 'left' : 'right');
+        const r = panel.getBoundingClientRect();
+        onSnap(r.left + r.width / 2 < window.innerWidth / 2 ? 'left' : 'right');
       };
-      cardHead.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('button')) return; // let the head buttons work
-        const r = card.getBoundingClientRect();
+      head.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button, select, input, .card-mode-seg')) return;
+        const r = panel.getBoundingClientRect();
         sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top; moved = false;
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
         e.preventDefault();
       });
+    };
+    wirePanelDrag(card, cardHead, applyCodeDock);
+    wirePanelDrag(parts, partsHead, (side) => this._syncBuildPanelDock(side));
 
-      // snap button toggles the sidebar between the left and right edge
-      this.root.querySelector('#card-snap')?.addEventListener('click', () => {
-        applyDock(this._cardDock === 'left' ? 'right' : 'left');
-      });
-      this.root.querySelector('#card-min')?.addEventListener('click', () => this._toggleSidebar());
-    }
-
-    // ── unified panel: fold the Add gallery + settings into their tabs ──
-    // (move the existing markup so all ids / handlers keep working)
-    // panel tabs (Parts · Shapes · Settings · Edit)
-    this.root.querySelectorAll('.ptab').forEach((b) => b.addEventListener('click', () => this._setPanelTab(b.dataset.ptab)));
+    this.root.querySelector('#card-snap')?.addEventListener('click', () => {
+      const next = this._cardDock === 'left' ? 'right' : 'left';
+      applyCodeDock(next);
+      this._syncBuildPanelDock(next);
+    });
+    this.root.querySelector('#parts-snap')?.addEventListener('click', () => {
+      const next = this._cardDock === 'left' ? 'right' : 'left';
+      this._syncBuildPanelDock(next);
+      applyCodeDock(next);
+    });
+    this.root.querySelector('#card-min')?.addEventListener('click', () => this._toggleSidebar());
+    this.root.querySelector('#parts-min')?.addEventListener('click', () => this._toggleSidebar());
+    this.root.querySelector('#inspector-close')?.addEventListener('click', () => this._closeInspector());
+    this.root.querySelector('#inspector-parts-toggle')?.addEventListener('click', () => this._togglePartsList());
+    this.root.querySelector('#parts-peek')?.addEventListener('click', () => this._togglePartsList());
 
     this.root.querySelectorAll('.edit-tool-tab').forEach((b) => b.addEventListener('click', () => {
       if (!b.hidden) this._setEditToolTab(b.dataset.ttab);
@@ -359,10 +370,11 @@ class EventBindings {
 
     $('#workspace-toggle')?.addEventListener('click', () => this._toggleSidebar());
 
-    $('#card-mode-seg')?.addEventListener('click', (e) => {
-      const opt = e.target.closest('.card-mode-opt');
-      if (opt?.dataset.mode) this._setAuthoringMode(opt.dataset.mode);
-    });
+    this.root.querySelectorAll('.card-mode-seg').forEach((seg) =>
+      seg.addEventListener('click', (e) => {
+        const opt = e.target.closest('.card-mode-opt');
+        if (opt?.dataset.mode) this._setAuthoringMode(opt.dataset.mode);
+      }));
 
     // align toolbar (appears when 2+ shapes are selected)
     this.root.querySelectorAll('[data-align]').forEach((b) =>

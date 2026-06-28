@@ -310,24 +310,26 @@ test('code editor: params panel toggles and line gutter renders', async ({ page 
 
 test('sidebar resize handle is available in build and code modes', async ({ page }) => {
   await gotoApp(page);
-  const visible = () => page.locator('#card-resize').evaluate((el) => getComputedStyle(el).display !== 'none');
-  await expect.poll(visible).toBe(true);
+  const codeVisible = () => page.locator('#card-resize').evaluate((el) => getComputedStyle(el).display !== 'none');
+  await expect.poll(codeVisible).toBe(true);
   await page.locator('#card-mode-build').click();
-  await expect.poll(visible).toBe(true);
+  const buildVisible = () => page.locator('#parts-resize').evaluate((el) => getComputedStyle(el).display !== 'none');
+  await expect.poll(buildVisible).toBe(true);
 });
 
-test('code and build panels are mutually exclusive in the part card', async ({ page }) => {
+test('code and build panels are mutually exclusive', async ({ page }) => {
   await gotoApp(page);
+  // Code mode: the source editor card is up, the build panels are away. Each mode
+  // shows its own Code/Build segment (the other card is hidden), so drive whichever
+  // segment is currently visible.
   await expect(page.locator('#pane-code')).toBeVisible();
-  await expect(page.locator('.pcol-main')).toBeHidden();
-  await expect(page.locator('#card-mode-code')).toHaveClass(/on/);
-  await page.locator('#card-mode-build').click();
+  await expect(page.locator('#parts-sidebar')).toBeHidden();
+  await page.locator('.card-mode-opt[data-mode="build"]:visible').first().click();
   await expect(page.locator('#pane-code')).toBeHidden();
-  await expect(page.locator('.pcol-main')).toBeVisible();
-  await expect(page.locator('#card-mode-build')).toHaveClass(/on/);
-  await page.locator('#card-mode-code').click();
+  await expect(page.locator('#parts-sidebar')).toBeVisible();
+  await page.locator('.card-mode-opt[data-mode="code"]:visible').first().click();
   await expect(page.locator('#pane-code')).toBeVisible();
-  await expect(page.locator('.pcol-main')).toBeHidden();
+  await expect(page.locator('#parts-sidebar')).toBeHidden();
 });
 
 test('code editor: line numbers align with code rows', async ({ page }) => {

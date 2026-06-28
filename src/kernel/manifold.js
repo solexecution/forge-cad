@@ -296,7 +296,175 @@ export function nutTrap(acrossFlats = 5.5, nutThick = 2.6, boltD = 3.4, shaftDep
   const M = kernel().Manifold, seg = CURVE_SEGMENTS;
   const hex = hexPrism(acrossFlats + 0.3, Math.max(0.5, nutThick));
   const shaft = M.cylinder(Math.max(nutThick + 0.5, shaftDepth), boltD / 2, boltD / 2, seg, false);
-  const out = hex.add(shaft); hex.delete(); shaft.delete(); return out;
+  const out = hex.add(shaft); hex.delete(); shaft.delete();   return out;
+}
+
+// Cylinder with its axis along Y, bottom at z=z0 (Manifold Z-up).
+function cylAlongY(M, x, y, z0, radius, height) {
+  let c = M.cylinder(height, radius, radius, CURVE_SEGMENTS, false);
+  const r = c.rotate(90, 0, 0);
+  c.delete();
+  const t = r.translate([x, y, z0]);
+  r.delete();
+  return t;
+}
+
+// Print-in-place pin hinge: two flat leaves + knuckles + captive pin. Hinge axis
+// is Y; leaves extend ±X. After printing, flex the joint a few times to free it.
+export function hingePin(leafL = 24, leafW = 16, leafT = 3, knuckleR = 2.5, pinR = 1.2, gap = 0.35) {
+  const M = kernel().Manifold;
+  const kw = Math.max(1.5, Math.min(leafW * 0.32, 4));
+  const pinSpan = kw * 1.2;
+  const yA = -pinSpan / 2 - kw / 2;
+  const yB = pinSpan / 2 + kw / 2;
+  const kZ = leafT;
+  const pinZ = leafT + gap;
+
+  const left = box(leafL, leafW, leafT, true).translate([-leafL / 2, 0, leafT / 2]);
+  const right = box(leafL, leafW, leafT, true).translate([leafL / 2, 0, leafT / 2]);
+  const k1 = cylAlongY(M, 0, yA, kZ, knuckleR, kw * 2);
+  const k2 = cylAlongY(M, 0, yB, kZ, knuckleR, kw * 2);
+  const pin = cylAlongY(M, 0, 0, pinZ, pinR, pinSpan);
+
+  let socket = cylAlongY(M, 0, 0, kZ, knuckleR, pinSpan + kw * 2);
+  const pinHole = cylAlongY(M, 0, 0, kZ, pinR + gap, pinSpan + kw * 2 + 0.4);
+  const socketCut = M.difference([socket, pinHole]);
+  socket.delete(); pinHole.delete();
+
+  const rightCut = M.difference([right, socketCut]);
+  right.delete(); socketCut.delete();
+
+  const out = M.union([left, rightCut, k1, k2, pin]);
+  left.delete(); rightCut.delete(); k1.delete(); k2.delete(); pin.delete();
+  return out;
+}
+
+// Single leaf with two knuckles on the hinge edge (x = 0). Add two (mirror one)
+// and join with a short filament pin, or screw each leaf to a panel.
+export function hingeHalf(leafL = 24, leafW = 16, leafT = 3, knuckleR = 2.5, pinR = 1.2, gap = 0.35) {
+  const M = kernel().Manifold;
+  const kw = Math.max(1.5, Math.min(leafW * 0.28, 3.5));
+  const y1 = -leafW * 0.22;
+  const y2 = leafW * 0.22;
+  const kZ = leafT;
+
+  const leaf = box(leafL, leafW, leafT, true).translate([leafL / 2, 0, leafT / 2]);
+  const k1 = cylAlongY(M, 0, y1, kZ, knuckleR, kw * 2);
+  const k2 = cylAlongY(M, 0, y2, kZ, knuckleR, kw * 2);
+  let body = M.union([leaf, k1, k2]);
+  leaf.delete(); k1.delete(); k2.delete();
+
+  const pinHole = cylAlongY(M, 0, 0, kZ, pinR + gap, kw * 2.2);
+  const out = M.difference([body, pinHole]);
+  body.delete(); pinHole.delete();
+  return out;
+}
+
+// Living hinge: two rigid tabs joined by a thin flex bridge. Print flat, fold once.
+export function hingeFlex(tabL = 20, tabW = 14, tabT = 3, bridgeW = 1.2, bridgeT = 0.6) {
+  const M = kernel().Manifold;
+  const bw = Math.max(0.3, bridgeW);
+  const bt = Math.max(0.3, Math.min(bridgeT, tabT * 0.85));
+  const left = box(tabL, tabW, tabT, true).translate([-(tabL + bw) / 2, 0, tabT / 2]);
+  const right = box(tabL, tabW, tabT, true).translate([(tabL + bw) / 2, 0, tabT / 2]);
+  const bridge = box(bw, tabW, bt, true).translate([0, 0, bt / 2]);
+  const out = M.union([left, right, bridge]);
+  left.delete(); right.delete(); bridge.delete();
+  return out;
+}
+
+// --- Latch / lock clips (base on plate, mount face at x = 0) ----------------
+
+// Flex snap clip: thin arm + hook barb. Snap onto a ledge on the mating leaf.
+export function lockSnap(baseL = 12, baseW = 14, baseT = 3, armL = 18, armT = 1.2, hookH = 4, gap = 0.35) {
+  const M = kernel().Manifold;
+  const bt = Math.max(0.5, baseT);
+  const at = Math.max(0.4, Math.min(armT, bt * 0.45));
+  const armW = Math.max(4, baseW * 0.55);
+  const hookD = Math.max(1.2, at * 1.5);
+  const hh = Math.max(2, hookH);
+
+  const base = M.cube([baseL, baseW, bt], false);
+  const bridge = M.cube([Math.max(1, baseL * 0.18), armW, Math.max(0.35, at * 0.5)], false)
+    .translate([baseL * 0.82, (baseW - armW) / 2, bt]);
+  const arm = M.cube([armL, armW, at], false).translate([baseL, (baseW - armW) / 2, bt]);
+  const lip = M.cube([hookD, armW, hh], false)
+    .translate([baseL + armL, (baseW - armW) / 2, bt]);
+  const barb = M.cube([hookD + gap + 1.5, armW * 0.72, hookD], false)
+    .translate([baseL + armL - hookD - gap - 1.5, (baseW - armW * 0.72) / 2, bt]);
+
+  const out = M.union([base, bridge, arm, lip, barb]);
+  base.delete(); bridge.delete(); arm.delete(); lip.delete(); barb.delete();
+  return out;
+}
+
+// Rigid hook hasp — swings over lockPeg on the mating leaf when the hinge closes.
+export function lockHook(baseL = 10, baseW = 12, baseT = 3, hookL = 14, hookW = 6, gap = 0.5) {
+  const M = kernel().Manifold;
+  const bt = Math.max(0.5, baseT);
+  const hw = Math.max(3, Math.min(hookW, baseW * 0.85));
+  const ht = Math.max(0.5, bt * 0.85);
+  const lip = Math.max(2, hw * 0.55);
+
+  const base = M.cube([baseL, baseW, bt], false);
+  const arm = M.cube([hookL, hw, ht], false).translate([baseL, (baseW - hw) / 2, bt]);
+  const drop = M.cube([hw, hw, lip + gap], false)
+    .translate([baseL + hookL - hw, (baseW - hw) / 2, bt - lip - gap + ht]);
+  const catchLip = M.cube([hw + gap + 1.2, hw, lip], false)
+    .translate([baseL + hookL - hw - gap - 1, (baseW - hw) / 2, bt - lip - gap + ht]);
+
+  const out = M.union([base, arm, drop, catchLip]);
+  base.delete(); arm.delete(); drop.delete(); catchLip.delete();
+  return out;
+}
+
+// Peg post — mate for lockHook. Centre peg on the mount pad.
+export function lockPeg(baseL = 10, baseW = 10, baseT = 3, pegD = 5, pegH = 6, gap = 0.5) {
+  const M = kernel().Manifold, seg = CURVE_SEGMENTS;
+  const bt = Math.max(0.5, baseT);
+  const r = Math.max(0.6, (pegD - gap) / 2);
+  const h = Math.max(2, pegH);
+  const base = M.cube([baseL, baseW, bt], false);
+  const peg = M.cylinder(h, r, r, seg, false).translate([baseL / 2, baseW / 2, bt]);
+  const out = base.add(peg);
+  base.delete(); peg.delete();
+  return out;
+}
+
+// Slide tongue (male) — push under lockKeeper on the mating leaf to hold closed.
+export function lockSlide(baseL = 10, baseW = 12, baseT = 3, tongueL = 16, tongueW = 8, tongueT = 2.4) {
+  const M = kernel().Manifold;
+  const bt = Math.max(0.5, baseT);
+  const tw = Math.max(0.4, Math.min(tongueT, bt * 0.85));
+  const ty = Math.max(3, Math.min(tongueW, baseW * 0.85));
+  const wedge = Math.max(2, tw * 1.25);
+
+  const base = M.cube([baseL, baseW, bt], false);
+  const tongue = M.cube([tongueL, ty, tw], false).translate([baseL, (baseW - ty) / 2, bt]);
+  const head = M.cube([wedge, ty * 1.08, tw * 1.35], false)
+    .translate([baseL + tongueL - wedge * 0.35, (baseW - ty * 1.08) / 2, bt + tw * 0.02]);
+
+  const out = M.union([base, tongue, head]);
+  base.delete(); tongue.delete(); head.delete();
+  return out;
+}
+
+// Groove keeper (female) — slot that lockSlide slides into and catches.
+export function lockKeeper(baseL = 12, baseW = 14, baseT = 3, slotL = 18, slotW = 9, slotT = 2.8, gap = 0.4) {
+  const M = kernel().Manifold;
+  const bt = Math.max(0.5, baseT);
+  const sy = Math.max(4, slotW);
+  const st = Math.max(0.5, slotT);
+  const sl = Math.max(6, slotL);
+
+  const base = M.cube([baseL, baseW, bt], false);
+  let body = base.add(M.cube([sl, sy, bt + st], false).translate([baseL, (baseW - sy) / 2, 0]));
+  base.delete();
+  const throat = M.cube([sl + 0.4, sy - gap * 2 - 1.2, st + gap], false)
+    .translate([baseL - 0.2, (baseW - sy) / 2 + gap + 0.6, bt - gap + 0.2]);
+  const out = M.difference([body, throat]);
+  body.delete(); throat.delete();
+  return out;
 }
 
 // Keyhole slot for hanging on a screw: a big head hole + a narrower slot

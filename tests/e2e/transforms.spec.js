@@ -6,6 +6,7 @@ import {
   selectNode,
   setPos,
   setRot,
+  setSize,
   getNode,
   collectConsoleErrors,
 } from './_helpers.js';
@@ -13,14 +14,15 @@ import {
 // Selection + transforms for the R&R (randr) build mode.
 //
 // Source facts verified against src/ui/app.js + src/ui/viewport.js:
-//   - Numeric editor fields exist only for pos ([data-pos="i:a"]) and rot
-//     ([data-rot="i:a"]); there is NO [data-scale] field — scale is gizmo-only.
+//   - The inspector has ONE set of numeric fields for the selected part:
+//     pos ([data-xf-pos="a"]), rot ([data-xf-rot="a"]) in the Position & rotation
+//     section, and size ([data-size-mm="a"]) in the Size section. No [data-scale].
 //   - viewport.editMeshes[] entries are { index, mesh, ... }; the editGroup is
 //     only rotated (no scale), so mesh.position.{x,y,z} maps 1:1 to node.pos
 //     [0,1,2] in mm.
-//   - Keyboard (window keydown, app.js:2517): w→translate, e→rotate, r→scale
-//     (build mode, no modifiers, not typing in INPUT/TEXTAREA). [data-xform]
-//     buttons carry the same values.
+//   - Keyboard (window keydown): w→translate, e→rotate, r→scale (build mode, no
+//     modifiers, not typing in INPUT/TEXTAREA). The on-screen ↔/⟳/⤢ mode buttons
+//     were removed in the inspector redesign — keyboard + numeric fields replace them.
 //   - Arrow nudge (app.js:2564): step = shiftKey ? 10 : 1 mm. ArrowRight +x,
 //     ArrowLeft -x, ArrowUp +y, ArrowDown -y, PageUp +z, PageDown -z. _nudge()
 //     applies the delta to EVERY selected node (app.js:816).
@@ -113,26 +115,27 @@ test('setRot updates node.rot on every axis', async ({ page }) => {
   expect(node.rot[2]).toBeCloseTo(-90, 3);
 });
 
-// PATH TAKEN: gizmo mode. There is no numeric scale field in the edit panel
-// (only [data-pos]/[data-rot]), so scale is asserted via the transform gizmo
-// switching to 'scale' mode rather than by editing a field.
-test('scale is driven by the gizmo (no numeric field): switching to scale mode', async ({ page }) => {
+// The inspector now sizes parts numerically (Size section, data-size-mm) instead
+// of only by dragging the scale gizmo. Setting W in mm changes the part's
+// measured local width (it edits the box's x param, leaving scale at 1:1).
+test('size is set numerically via the Size section fields', async ({ page }) => {
   await gotoApp(page);
   await ensureBuildMode(page);
 
   const i = await addShape(page, 'box');
   await selectNode(page, i);
 
-  // Sanity: confirm the codebase really exposes no scale input for this part.
-  expect(await page.locator(`[data-scale="${i}:0"]`).count()).toBe(0);
+  const before = await page.evaluate((i) => window.__forgeApp.viewport.shapeLocalSize(i).w, i);
+  expect(before).toBeGreaterThan(0);
 
-  await page.locator('[data-xform="scale"]').click();
+  await setSize(page, i, 0, before + 20);
   await page.waitForFunction(
-    () => window.__forgeApp.viewport.transformMode === 'scale',
-    null,
-    { timeout: 5000 },
+    ({ i, w }) => Math.abs(window.__forgeApp.viewport.shapeLocalSize(i).w - w) < 0.5,
+    { i, w: before + 20 },
+    { timeout: 10000 },
   );
-  expect(await page.evaluate(() => window.__forgeApp.viewport.transformMode)).toBe('scale');
+  const after = await page.evaluate((i) => window.__forgeApp.viewport.shapeLocalSize(i).w, i);
+  expect(after).toBeCloseTo(before + 20, 0);
 });
 
 test('W/E/R keys switch the transform mode', async ({ page }) => {
@@ -162,27 +165,9 @@ test('W/E/R keys switch the transform mode', async ({ page }) => {
   expect(await mode()).toBe('translate');
 });
 
-test('[data-xform] toolbar buttons switch the transform mode', async ({ page }) => {
-  await gotoApp(page);
-  await ensureBuildMode(page);
-
-  const i = await addShape(page, 'box');
-  await selectNode(page, i);
-
-  const mode = () => page.evaluate(() => window.__forgeApp.viewport.transformMode);
-
-  await page.locator('[data-xform="rotate"]').click();
-  await page.waitForFunction(() => window.__forgeApp.viewport.transformMode === 'rotate', null, {
-    timeout: 5000,
-  });
-  expect(await mode()).toBe('rotate');
-
-  await page.locator('[data-xform="translate"]').click();
-  await page.waitForFunction(() => window.__forgeApp.viewport.transformMode === 'translate', null, {
-    timeout: 5000,
-  });
-  expect(await mode()).toBe('translate');
-});
+// NOTE: the on-screen ↔move/⟳turn/⤢size buttons were removed in the inspector
+// redesign — gizmo mode is switched by the W/E/R keys (covered above) and parts
+// are positioned/sized numerically via the inspector fields.
 
 test('arrow keys nudge the selected part by 1mm (10mm with Shift) on the right axis', async ({ page }) => {
   await gotoApp(page);

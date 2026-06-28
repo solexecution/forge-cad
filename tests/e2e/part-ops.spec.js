@@ -12,20 +12,31 @@ import {
 // E2E coverage for R&R CAD per-part operations and the multi-select tool bars.
 // Everything is asserted against window.__forgeApp build-tree state.
 //
-// Selector notes (verified in src/ui/app.js):
-//   - The PER-PART action buttons [data-op]/[data-lock]/[data-hide]/[data-clone]/
-//     [data-del] live in the detail editor #part-modal-fields, which only renders
-//     for a SINGLE selected node with the edit tab open. selectNode() (non-additive)
-//     drives viewport.onSelect -> _setPanelTab('edit'), opening that editor.
-//   - The compact roster #build-list ALSO carries a [data-op]/[data-del] per row, so
-//     per-part selectors are scoped to '#part-modal-fields' to stay unambiguous.
-//   - Tool bars live in tabbed edit-tools: Place (#opsbar), Multi (#alignbar/#groupbar/#arraybar).
-//     _renderAlignBar enables/disables buttons; Multi tab auto-opens when 2+ parts are selected.
+// Selector notes (verified in src/ui/buildPane.js after the inspector redesign):
+//   - Each roster row (#build-list .pl-row) carries the always-visible per-part
+//     buttons [data-op] (solid/hole) and [data-rhide] (show/hide), plus a [data-more]
+//     button that opens an in-page overflow menu (.pl-menu) holding lock / duplicate
+//     / delete as [data-act="lock|dup|del"]. There is no native context menu.
+//   - The Place/Combine tools live in collapsible inspector sections (Arrange =
+//     #opsbar/#cutbar, Combine = #alignbar/#groupbar/#arraybar). _renderAlignBar
+//     enables/disables buttons; the Combine section auto-opens when 2+ parts are selected.
 
-const PART = '#part-modal-fields';
+const PART = '#build-list';
 
+// The edit tabs are now collapsible <details> sections — expand the matching one.
 async function openEditToolTab(page, tab) {
-  await page.click(`.edit-tool-tab[data-ttab="${tab}"]`);
+  const id = { move: 'sec-transform', size: 'sec-size', place: 'sec-arrange', multi: 'sec-combine' }[tab];
+  await page.evaluate((id) => {
+    const sec = document.querySelector('#' + id);
+    if (sec) sec.open = true;
+  }, id);
+}
+
+// Open a roster row's ⋯ overflow menu and click one of its actions.
+async function rowMenuAction(page, idx, act) {
+  await page.click(`#build-list .pl-row[data-node="${idx}"] [data-more]`);
+  await expect(page.locator('.pl-menu')).toBeVisible();
+  await page.click(`.pl-menu [data-act="${act}"]`);
 }
 
 // Select two nodes: first non-additive (opens edit/parts), then additive to add
@@ -76,46 +87,44 @@ test.describe('per-part operations', () => {
     expect(errors).toEqual([]);
   });
 
-  test('lock toggles via [data-lock]', async ({ page }) => {
+  test('lock toggles via the ⋯ overflow menu', async ({ page }) => {
     await gotoApp(page);
     await ensureBuildMode(page);
     const i = await addShape(page, 'box');
     await selectNode(page, i);
     expect((await getNode(page, i)).locked).toBe(false);
 
-    const sel = await waitPartButton(page, 'lock', i);
-    await page.click(sel);
+    await rowMenuAction(page, i, 'lock');
     await page.waitForFunction((i) => window.__forgeApp.buildTree.nodes[i].locked === true, i);
     expect((await getNode(page, i)).locked).toBe(true);
 
-    // toggle back off (editor re-renders, button is re-attached)
-    await page.click(await waitPartButton(page, 'lock', i));
+    // toggle back off (the list re-renders; the menu re-opens fresh each time)
+    await rowMenuAction(page, i, 'lock');
     await page.waitForFunction((i) => window.__forgeApp.buildTree.nodes[i].locked === false, i);
     expect((await getNode(page, i)).locked).toBe(false);
   });
 
-  test('hide toggles via [data-hide]', async ({ page }) => {
+  test('hide toggles via [data-rhide]', async ({ page }) => {
     await gotoApp(page);
     await ensureBuildMode(page);
     const i = await addShape(page, 'box');
     await selectNode(page, i);
     expect((await getNode(page, i)).hidden).toBe(false);
 
-    const sel = await waitPartButton(page, 'hide', i);
+    const sel = await waitPartButton(page, 'rhide', i);
     await page.click(sel);
     await page.waitForFunction((i) => window.__forgeApp.buildTree.nodes[i].hidden === true, i);
     expect((await getNode(page, i)).hidden).toBe(true);
   });
 
-  test('duplicate via [data-clone] increases part count by 1', async ({ page }) => {
+  test('duplicate via the ⋯ overflow menu increases part count by 1', async ({ page }) => {
     await gotoApp(page);
     await ensureBuildMode(page);
     const i = await addShape(page, 'box');
     await selectNode(page, i);
     const before = await partCount(page);
 
-    const sel = await waitPartButton(page, 'clone', i);
-    await page.click(sel);
+    await rowMenuAction(page, i, 'dup');
     await page.waitForFunction((n) => window.__forgeApp.buildTree.nodes.length === n + 1, before);
     expect(await partCount(page)).toBe(before + 1);
   });
@@ -132,15 +141,14 @@ test.describe('per-part operations', () => {
     expect(await partCount(page)).toBe(before + 1);
   });
 
-  test('delete via [data-del] decreases part count by 1', async ({ page }) => {
+  test('delete via the ⋯ overflow menu decreases part count by 1', async ({ page }) => {
     await gotoApp(page);
     await ensureBuildMode(page);
     const i = await addShape(page, 'box');
     await selectNode(page, i);
     const before = await partCount(page);
 
-    const sel = await waitPartButton(page, 'del', i);
-    await page.click(sel);
+    await rowMenuAction(page, i, 'del');
     await page.waitForFunction((n) => window.__forgeApp.buildTree.nodes.length === n - 1, before);
     expect(await partCount(page)).toBe(before - 1);
   });

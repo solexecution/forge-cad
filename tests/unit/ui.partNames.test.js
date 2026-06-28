@@ -10,7 +10,7 @@ describe('partNames', () => {
   it('uses custom name when set', () => {
     const n = { kind: 'box', name: 'Stand body' };
     expect(partDisplayName(n)).toBe('Stand body');
-    expect(partListLabel(n)).toBe('Stand body · box');
+    expect(partListLabel(n)).toBe('Stand body');
   });
 
   it('falls back to kind label', () => {

@@ -14,7 +14,9 @@ const KINDS = [
   'box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'dome',
   'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox',
   'chamferedCylinder', 'tube', 'prism', 'gear', 'counterbore', 'countersink',
-  'insertHole', 'nutTrap', 'keyhole', 'text', 'imported', 'extrusion',
+  'insertHole', 'nutTrap', 'keyhole', 'hingePin', 'hingeHalf', 'hingeFlex',
+  'lockSnap', 'lockHook', 'lockPeg', 'lockSlide', 'lockKeeper',
+  'text', 'imported', 'extrusion',
   'revolution', 'thread', 'bolt', 'nut',
 ];
 

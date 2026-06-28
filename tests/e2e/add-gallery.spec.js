@@ -27,7 +27,7 @@ import {
 //   - Sketch tile #add-sketch → _startSketch reveals #sketch-bar; #sketch-cancel
 //     hides it. Import tile #modal-import clicks the hidden #stl-file input.
 
-const EXPECTED_CATS = ['draw', 'basic', 'rounded', 'text', 'fasteners', 'ready', 'import'];
+const EXPECTED_CATS = ['draw', 'basic', 'rounded', 'text', 'fasteners', 'hinges', 'locks', 'ready', 'import'];
 
 /** Empty the build tree so partCount deltas are unambiguous (templates replace, not append). */
 async function resetTree(page) {

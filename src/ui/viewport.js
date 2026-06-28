@@ -1203,6 +1203,23 @@ export class Viewport {
     return { minZ: g.boundingBox.min.z * sz, maxZ: g.boundingBox.max.z * sz };
   }
 
+  // Model-space W×D×H (rotation ignored) — the part's own width, depth, height.
+  shapeLocalSize(index) {
+    const em = this.editMeshes.find((e) => e.index === index);
+    if (!em) return null;
+    const g = em.mesh.geometry;
+    g.computeBoundingBox();
+    const bb = g.boundingBox;
+    const sx = Math.abs(em.mesh.scale.x) || 1;
+    const sy = Math.abs(em.mesh.scale.y) || 1;
+    const sz = Math.abs(em.mesh.scale.z) || 1;
+    return {
+      w: (bb.max.x - bb.min.x) * sx,
+      d: (bb.max.y - bb.min.y) * sy,
+      h: (bb.max.z - bb.min.z) * sz,
+    };
+  }
+
   // Absolute AABB of a shape in the editGroup (language) frame — for aligning
   // shapes by their min / centre / max edges.
   shapeBounds(index) {
